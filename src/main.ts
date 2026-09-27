@@ -3,6 +3,7 @@ import { DEFAULT_MODULATION, MODULATION_RATES, modulateSound, restoreModulation,
 import { bootstrapApplication } from '@angular/platform-browser';
 import { sliceBounds, columnPads } from './sequencer';
 import { DEFAULT_SOUND, SOUND_CONTROLS, effectiveSound, voiceShape, restoreSounds, type SoundSettings, type SoundKey, type PadSound } from './sampler';
+import { getRowColor } from './terminal-theme';
 
 @Component({selector:'app-root', standalone:true, host:{'(document:keydown)':'onKeydown($event)'}, template:`
 <header class="app-header"><a class="brand" href="/" aria-label="Stepfield home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Stepfield</a><span class="online" [class.is-playing]="running()"><i></i>{{ running() ? 'Playing' : loaded() ? 'Ready' : 'No audio loaded' }}</span></header>
@@ -10,7 +11,7 @@ import { DEFAULT_SOUND, SOUND_CONTROLS, effectiveSound, voiceShape, restoreSound
 <div class="toolbar"><div class="switch" aria-label="Grid mode"><button [class.chosen]="mode() === 'pattern'" [attr.aria-pressed]="mode() === 'pattern'" (click)="mode.set('pattern')">Select steps</button><button [class.chosen]="mode() === 'edit'" [attr.aria-pressed]="mode() === 'edit'" (click)="editMode()">Edit sound</button></div><div class="transport"><button class="play" [disabled]="!loaded() || loading() || running()" (click)="start()" title="Play · Space">{{ loading() ? 'Loading audio…' : !loaded() ? 'Load audio to play' : running() ? 'Playing' : '▶ Play' }}</button><button class="stop" (click)="stop()" title="Stop · Space">■ Stop</button></div></div>
 <div class="transport-settings"><label class="tempo">BPM<input aria-label="Tempo · BPM" type="number" min="30" max="300" [value]="bpm()" (change)="setTempo($event)"></label><label class="master-volume">Volume<input aria-label="Volume · %" type="range" min="0" max="100" [value]="volume()" (input)="setVolume($event)"><span>{{ volume() }}%</span></label><span class="shortcut"><kbd>space</kbd> play / stop</span></div>
 <div class="grid-area"><div class="step-ruler" aria-hidden="true">@for (step of steps; track step) {<span [class.current]="column() === step">{{ step + 1 }}</span>}</div>
-<div class="grid" aria-label="256 audio slices, 16 rows and 16 time steps"><div class="playhead-track" aria-hidden="true">@if (column() >= 0) {<span class="playhead-marker" [style.grid-column]="column() + 1"></span>}</div>@for (enabled of pattern(); track $index) {<button #padButton class="pad" [class.assigned]="enabled" [class.selected]="selected() === $index" [attr.aria-pressed]="enabled" [attr.aria-label]="padLabel($index)" [title]="padLabel($index)" (click)="press($index)"></button>}</div></div>
+<div class="grid" aria-label="256 audio slices, 16 rows and 16 time steps"><div class="playhead-track" aria-hidden="true">@if (column() >= 0) {<span class="playhead-marker" [style.grid-column]="column() + 1"></span>}</div>@for (enabled of pattern(); track $index) {<button #padButton class="pad" [class.assigned]="enabled" [class.selected]="selected() === $index" [style.--row-color]="rowColors[$index]" [attr.aria-pressed]="enabled" [attr.aria-label]="padLabel($index)" [title]="padLabel($index)" (click)="press($index)"></button>}</div></div>
 <div class="grid-footer"><span>{{ enabledCount() }} active <span class="separator">/</span> 256 pads</span><span>{{ mode() === 'pattern' ? (running() ? 'Tap to change steps' : 'Tap to toggle + preview') : 'Select a pad to edit' }}</span><span class="step-count">{{ column() >= 0 ? (column() + 1).toString().padStart(2, '0') : '—' }} / 16</span></div>
 </section>
 <aside class="inspector" aria-label="Instrument controls"><div class="source-summary"><span class="source-icon" aria-hidden="true">♫</span><div><p class="source-name" [title]="fileName()">{{ fileName() || 'Load a recording' }}</p><span class="source-meta">{{ loaded() ? duration().toFixed(1) + ' s · 256 slices' : 'YouTube or local file' }}</span></div><button class="source-change" aria-label="Change source" title="Change source" (click)="panel.set('source')">↗</button></div>
@@ -45,6 +46,7 @@ import { DEFAULT_SOUND, SOUND_CONTROLS, effectiveSound, voiceShape, restoreSound
 <div class="status-bar"><p class="status" role="status">{{ message() }}</p><span>16 × 16</span></div>
 </main>`})
 class App implements OnDestroy, AfterViewInit {
+  readonly rowColors = Array.from({length:256}, (_, index) => getRowColor(Math.floor(index / 16)));
   readonly panels = [{id:'source',label:'Source'},{id:'sound',label:'Sound'},{id:'mod',label:'Mod'},{id:'session',label:'Session'}] as const;
   panel = signal<'source'|'sound'|'mod'|'session'>('source');
   readonly modulationRates = MODULATION_RATES;

@@ -2,3 +2,56 @@
 
 /* Flat pad rendering: no animated shadows, rounded masks, or per-pad playhead tint. */
 .instrument{background:#252a2d;box-shadow:none;border-radius:16px}.grid{border-radius:8px;box-shadow:none}.pad{border-radius:4px;box-shadow:none;transition:none;background:#50595e}.pad.assigned{background:#bddde4;box-shadow:none}.pad.active{background:#e0fbff;box-shadow:none}.pad.selected{outline-offset:2px}.playhead-marker{border-radius:4px;box-shadow:none;background:#d4f5ff08}.grid-area{max-width:none}.mod-heading{display:flex;align-items:center;justify-content:space-between;font-size:12px}.mod-enable{display:flex;align-items:center;gap:7px;margin:0}.mod-enable input[type=checkbox]{width:16px;height:16px;margin:0;accent-color:var(--accent)}select{display:block;width:100%;margin-top:8px;padding:9px 8px;border:1px solid #3a454b;border-radius:9px;background:#191e21;color:#dce8ed;font:11px inherit}.mod-pair{display:flex;gap:10px}.mod-pair label{min-width:0;flex:1}.mod-depth span{float:right;color:var(--accent)}select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:760px){.grid-area{width:100%}}
+
+/* Terminal colour system: neutral interface surfaces and persistent row identity. */
+:root {
+  --surface-background: #111719;
+  --surface-panel: #1F242C;
+  --surface-elevated: #252C33;
+  --surface-grid: #0D1214;
+  --pad-inactive: #4E585F;
+  --border: #39444B;
+  --text-primary: #F1F4F5;
+  --text-secondary: #93A0A6;
+  --text-muted: #6F7B81;
+  --accent: #93A0A6;
+  --muted: var(--text-muted);
+  --line: var(--border);
+  --playhead-border: #D6EAF2;
+  --playhead-fill: rgba(214, 234, 242, 0.10);
+  --selected-border: #EAF7FA;
+  color: var(--text-primary);
+  background: var(--surface-background);
+}
+body { background: var(--surface-background); color: var(--text-primary); }
+button { color: var(--text-secondary); }
+button:hover { color: var(--text-primary); }
+.brand, .source-name, .sound-heading, .section-label { color: var(--text-primary); }
+.instrument, .inspector { background: var(--surface-panel); border-color: var(--border); }
+.switch, input:not([type=range]), select { background: var(--surface-background); border-color: var(--border); color: var(--text-primary); }
+.switch .chosen { background: var(--surface-elevated); color: var(--text-primary); }
+.play, .primary { background: var(--surface-elevated); color: var(--text-primary); }
+.play:hover:not(:disabled), .primary:hover:not(:disabled) { background: var(--border); color: var(--text-primary); }
+.stop, .connect { background: var(--surface-elevated); border-color: var(--border); color: var(--text-secondary); }
+.transport-settings label, label, .source-meta, .panel-tabs button, .fine, .status,
+.grid-footer, .online, .step-ruler { color: var(--text-secondary); }
+.shortcut, .dim, .inherit, .clear, .step-count { color: var(--text-muted); }
+.step-ruler .current { background: var(--surface-elevated); color: var(--text-primary); }
+.grid { background: var(--surface-grid); border-color: var(--border); }
+.pad { background: var(--pad-inactive); }
+.pad:hover { background: var(--pad-inactive); }
+.pad.assigned { background: var(--row-color); }
+.pad.active { background: var(--row-color); }
+.pad.selected { outline-color: var(--selected-border); }
+.playhead-marker {
+  border-color: var(--playhead-border);
+  background: var(--playhead-fill);
+  box-shadow: none;
+}
+.source-icon { background: var(--surface-elevated); color: var(--text-secondary); }
+.panel-tabs .chosen { border-color: var(--text-secondary); color: var(--text-primary); }
+input[type=range] { accent-color: var(--text-secondary); }
+.file-picker, .length-presets button { border-color: var(--border); color: var(--text-secondary); }
+.file-picker:hover { background: var(--surface-elevated); }
+.divider:before, .divider:after, .sound-details { border-color: var(--border); }
+select:focus-visible, input:focus-visible { outline-color: var(--text-secondary); }
