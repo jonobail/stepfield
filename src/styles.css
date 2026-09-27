@@ -55,3 +55,4 @@ input[type=range] { accent-color: var(--text-secondary); }
 .file-picker:hover { background: var(--surface-elevated); }
 .divider:before, .divider:after, .sound-details { border-color: var(--border); }
 select:focus-visible, input:focus-visible { outline-color: var(--text-secondary); }
+.brand-mark i:nth-child(2), .brand-mark i:nth-child(3) { opacity: 1; }

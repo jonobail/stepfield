@@ -3,10 +3,10 @@ import { DEFAULT_MODULATION, MODULATION_RATES, modulateSound, restoreModulation,
 import { bootstrapApplication } from '@angular/platform-browser';
 import { sliceBounds, columnPads } from './sequencer';
 import { DEFAULT_SOUND, SOUND_CONTROLS, effectiveSound, voiceShape, restoreSounds, type SoundSettings, type SoundKey, type PadSound } from './sampler';
-import { getRowColor } from './terminal-theme';
+import { getRowColor, TERMINAL_ROW_COLORS } from './terminal-theme';
 
 @Component({selector:'app-root', standalone:true, host:{'(document:keydown)':'onKeydown($event)'}, template:`
-<header class="app-header"><a class="brand" href="/" aria-label="Stepfield home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Stepfield</a><span class="online" [class.is-playing]="running()"><i></i>{{ running() ? 'Playing' : loaded() ? 'Ready' : 'No audio loaded' }}</span></header>
+<header class="app-header"><a class="brand" href="/" aria-label="Stepfield home"><span class="brand-mark" aria-hidden="true"><i [style.background]="logoColors[0]"></i><i [style.background]="logoColors[1]"></i><i [style.background]="logoColors[2]"></i><i [style.background]="logoColors[3]"></i></span>Stepfield</a><span class="online" [class.is-playing]="running()"><i></i>{{ running() ? 'Playing' : loaded() ? 'Ready' : 'No audio loaded' }}</span></header>
 <main><div class="workspace"><section class="instrument" aria-label="Step sequencer">
 <div class="toolbar"><div class="switch" aria-label="Grid mode"><button [class.chosen]="mode() === 'pattern'" [attr.aria-pressed]="mode() === 'pattern'" (click)="mode.set('pattern')">Select steps</button><button [class.chosen]="mode() === 'edit'" [attr.aria-pressed]="mode() === 'edit'" (click)="editMode()">Edit sound</button></div><div class="transport"><button class="play" [disabled]="!loaded() || loading() || running()" (click)="start()" title="Play · Space">{{ loading() ? 'Loading audio…' : !loaded() ? 'Load audio to play' : running() ? 'Playing' : '▶ Play' }}</button><button class="stop" (click)="stop()" title="Stop · Space">■ Stop</button></div></div>
 <div class="transport-settings"><label class="tempo">BPM<input aria-label="Tempo · BPM" type="number" min="30" max="300" [value]="bpm()" (change)="setTempo($event)"></label><label class="master-volume">Volume<input aria-label="Volume · %" type="range" min="0" max="100" [value]="volume()" (input)="setVolume($event)"><span>{{ volume() }}%</span></label><span class="shortcut"><kbd>space</kbd> play / stop</span></div>
@@ -46,6 +46,7 @@ import { getRowColor } from './terminal-theme';
 <div class="status-bar"><p class="status" role="status">{{ message() }}</p><span>16 × 16</span></div>
 </main>`})
 class App implements OnDestroy, AfterViewInit {
+  readonly logoColors = TERMINAL_ROW_COLORS.slice(0, 4);
   readonly rowColors = Array.from({length:256}, (_, index) => getRowColor(Math.floor(index / 16)));
   readonly panels = [{id:'source',label:'Source'},{id:'sound',label:'Sound'},{id:'mod',label:'Mod'},{id:'session',label:'Session'}] as const;
   panel = signal<'source'|'sound'|'mod'|'session'>('source');
