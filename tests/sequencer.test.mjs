@@ -75,7 +75,7 @@ test('row repeat fills all 16 steps with the selected slice and preserves other 
   assert.equal(result[50],false);
 });
 
-test('scrolling a row sound changes the shared slice without changing other rows', () => {
+test('assigning a row sound changes the shared slice without changing other rows', () => {
   const samples = Array.from({length:16},(_,row) => row * 16);
   const next = assignRowSample(samples,2,200);
   assert.equal(next[2],200);

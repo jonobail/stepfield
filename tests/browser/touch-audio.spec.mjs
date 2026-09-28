@@ -50,4 +50,17 @@ test.describe('touch audio activation', () => {
     await page.getByRole('button',{name:'■ Stop',exact:true}).tap();
   });
 
+  test('waveform touch release auditions the assigned slice through the same audio output',async({page})=>{
+    await restoreCachedSource(page);
+    await page.getByRole('combobox',{name:'Grid action',exact:true}).selectOption('edit');
+    const canvas=page.getByRole('img',{name:'Source waveform with 256 slices'});
+    await canvas.scrollIntoViewIfNeeded();const box=await canvas.boundingBox();
+    await page.touchscreen.tap(box.x+box.width*.5,box.y+75);
+    await expect.poll(()=>page.evaluate(()=>window.audioResumes.length)).toBe(1);
+    expect(await page.evaluate(()=>window.audioResumes[0])).toEqual({event:'pointerup',active:true});
+    await expect.poll(()=>page.evaluate(()=>window.outputPeak())).toBeGreaterThan(.002);
+    expect(await page.evaluate(()=>window.audioStarts.length)).toBe(1);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)).toBe(false);
+  });
+
 });

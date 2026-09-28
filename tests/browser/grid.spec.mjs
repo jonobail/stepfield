@@ -52,7 +52,7 @@ test('YouTube import polls conversion, decodes the response, and reloads saved a
   await expect(page.getByRole('button',{name:'▶ Play',exact:true})).toBeEnabled();
 });
 
-test('global and per-pad shaping alter real audio triggers and survive reload',async ({page}) => {
+test('global and per-row shaping alter real audio triggers and survive reload',async ({page}) => {
   await page.addInitScript(() => {
     window.audioStarts = [];
     const start = AudioBufferSourceNode.prototype.start;
@@ -63,7 +63,7 @@ test('global and per-pad shaping alter real audio triggers and survive reload',a
   await expect(page.getByRole('status')).toContainText('slices');
   const change = async (label,value) => { const input = page.getByRole('spinbutton',{name:label+' value',exact:true}); await input.fill(String(value)); await input.press('Tab'); };
   await change('Length',50);
-  await page.getByRole('button',{name:'Edit sound',exact:true}).click();
+  await page.getByRole('combobox',{name:'Grid action',exact:true}).selectOption('edit');
   await page.locator('.pad').nth(0).click();
   await expect(page.locator('.pad').nth(0)).toHaveAttribute('aria-pressed','false');
   await page.getByRole('button',{name:'Blip · 10 ms',exact:true}).click();
@@ -75,18 +75,18 @@ test('global and per-pad shaping alter real audio triggers and survive reload',a
   await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBe(1);
   const preview = await page.evaluate(() => window.audioStarts[0]); expect(preview.duration).toBeCloseTo(.01); expect(preview.rate).toBe(2);
   await page.locator('.pad').nth(16).click(); await expect(page.getByRole('spinbutton',{name:'Length value'})).toHaveValue('50');
-  await page.getByRole('button',{name:'Select steps',exact:true}).click(); await page.locator('.pad').nth(0).click(); await page.locator('.pad').nth(16).click();
+  await page.getByRole('combobox',{name:'Grid action',exact:true}).selectOption('pattern'); await page.locator('.pad').nth(0).click(); await page.locator('.pad').nth(16).click();
   await page.evaluate(() => { window.audioStarts = []; });
   await page.getByRole('button',{name:'▶ Play',exact:true}).click();
   await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBeGreaterThanOrEqual(2);
   const voices = await page.evaluate(() => window.audioStarts.slice(0,2));
   expect(voices[0].when).toBe(voices[1].when); expect(voices[0].duration).toBeCloseTo(.01); expect(voices[0].rate).toBe(2); expect(voices[1].duration).toBe(.125); expect(voices[1].rate).toBe(1);
   await page.getByRole('button',{name:'■ Stop',exact:true}).click();
-  await page.reload(); await page.getByRole('button',{name:'Edit sound',exact:true}).click(); await page.locator('.pad').nth(0).click();
+  await page.reload(); await page.getByRole('combobox',{name:'Grid action',exact:true}).selectOption('edit'); await page.locator('.pad').nth(0).click();
   await expect(page.getByRole('spinbutton',{name:'Length value'})).toHaveValue('4');
   await page.getByRole('button',{name:'↩ Use global length',exact:true}).click(); await expect(page.getByRole('spinbutton',{name:'Length value'})).toHaveValue('50');
    await expect(page.getByRole('spinbutton',{name:'Pitch value'})).toHaveValue('12');
-  await page.getByRole('button',{name:'Reset pad to global',exact:true}).click(); await expect(page.getByRole('spinbutton',{name:'Pitch value'})).toHaveValue('0');
+  await page.getByRole('button',{name:'Reset row to global',exact:true}).click(); await expect(page.getByRole('spinbutton',{name:'Pitch value'})).toHaveValue('0');
   await page.setViewportSize({width:390,height:844}); expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
 });
 
@@ -143,7 +143,7 @@ test('selecting a step auditions its slice while stopped; running selection wait
   await page.getByRole('button',{name:'■ Stop',exact:true}).click();
 });
 
-test('scrolling a row cycles its shared sound for every step in that row', async ({page}) => {
+test('scrolling over the grid leaves its row sounds unchanged', async ({page}) => {
   await page.addInitScript(() => {
     window.audioStarts = [];
     const start = AudioBufferSourceNode.prototype.start;
@@ -154,8 +154,8 @@ test('scrolling a row cycles its shared sound for every step in that row', async
   await page.locator('.pad').nth(0).hover(); await page.mouse.wheel(0,100);
   await page.locator('.pad').nth(0).click(); await page.locator('.pad').nth(7).click();
   await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBe(2);
-  expect(await page.evaluate(() => window.audioStarts.map(start => start.offset))).toEqual([.25,.25]);
-  await expect(page.locator('.pad').nth(0)).toHaveAttribute('title',/Slice 2/);
+  expect(await page.evaluate(() => window.audioStarts.map(start => start.offset))).toEqual([0,0]);
+  await expect(page.locator('.pad').nth(0)).toHaveAttribute('title',/Slice 1,/);
   await expect(page.locator('.pad').nth(16)).toHaveAttribute('title',/Slice 17/);
 });
 
@@ -179,7 +179,11 @@ test('drag painting fills and clears crossed pads while Shift-drag moves a step'
 test('source, sound, modulation and session actions are directly accessible on desktop and mobile', async ({page}) => {
   await page.setViewportSize({width:1280,height:900}); await page.goto('/');
   await expect(page.getByRole('link',{name:'Stepfield home'})).toBeVisible();
-  const grid = await page.locator('.grid').boundingBox(); expect(grid.width).toBeGreaterThan(750);
+  const grid = await page.locator('.grid').boundingBox(); expect(grid.width).toBeGreaterThan(540); expect(grid.width).toBeLessThan(700);
+  expect(await page.locator('.grid').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
+  const controls = await page.locator('.inspector').boundingBox(); expect(controls.y).toBeGreaterThanOrEqual(grid.y + grid.height);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await expect(page.locator('source-editor .empty-waveform')).toBeVisible();
   await expect(page.getByRole('textbox',{name:'YouTube link'})).toBeVisible();
   await expect(page.getByRole('button',{name:'Export pattern ↗'})).toBeVisible();
   for (const name of ['Length','Pitch','Pan','Attack','Release','Level']) await expect(page.getByRole('spinbutton',{name:name+' value',exact:true})).toBeVisible();
@@ -192,6 +196,11 @@ test('source, sound, modulation and session actions are directly accessible on d
   await page.getByRole('button',{name:'Clear pattern',exact:true}).click();
   await expect(page.locator('.pad.assigned')).toHaveCount(0);
   await page.screenshot({path:'test-results/stepfield-desktop.png',fullPage:true});
+  await page.setViewportSize({width:1600,height:1000});
+  const wideGrid=await page.locator('.grid').boundingBox(),widePanel=await page.locator('.inspector').boundingBox();
+  expect(wideGrid.width).toBeGreaterThan(700); expect(wideGrid.width).toBeLessThan(760); expect(widePanel.width).toBeGreaterThan(700);
+  expect(await page.locator('.grid').evaluate(el => el.getBoundingClientRect().bottom <= innerHeight)).toBe(true);
+  expect(widePanel.x).toBeGreaterThanOrEqual(wideGrid.x+wideGrid.width);
   await page.setViewportSize({width:390,height:844});
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   await page.getByRole('link',{name:'Modulation',exact:true}).click();

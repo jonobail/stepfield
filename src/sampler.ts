@@ -43,3 +43,25 @@ export function restoreSounds(global:unknown, pads:unknown):{global:SoundSetting
   if (!valid(global,false) || !Array.isArray(pads) || pads.length !== 256 || !pads.every(p => valid(p,true))) throw new Error('Invalid sound settings');
   return {global:{...DEFAULT_SOUND,...global},pads:pads.map(p => ({...p}))};
 }
+
+/** Read row overrides and consolidate legacy per-pad overrides without losing row settings. */
+export function restoreRowSounds(global:unknown, rows:unknown, legacyPads:unknown):{global:SoundSettings; rows:PadSound[]} {
+  const emptyPads = Array.from({length:256}, () => ({}));
+  const defaults = global === undefined ? {...DEFAULT_SOUND} : restoreSounds(global,emptyPads).global;
+  if (rows !== undefined) {
+    if (legacyPads !== undefined) throw new Error('Ambiguous sound settings');
+    const decoded = restoreSounds(defaults,[...(Array.isArray(rows) ? rows : []),...Array.from({length:240},() => ({}))]);
+    if (!Array.isArray(rows) || rows.length !== 16) throw new Error('Invalid row sound settings');
+    return {global:decoded.global,rows:decoded.pads.slice(0,16)};
+  }
+  const legacy = restoreSounds(defaults,legacyPads ?? emptyPads).pads;
+  const migrated = Array.from({length:16},(_,row) => {
+    const result:PadSound = {};
+    for (const control of SOUND_CONTROLS) {
+      const existing = legacy.slice(row * 16,row * 16 + 16).find(pad => Object.hasOwn(pad,control.key));
+      if (existing) result[control.key] = existing[control.key];
+    }
+    return result;
+  });
+  return {global:defaults,rows:migrated};
+}

@@ -16,8 +16,8 @@ Stepfield divides a recording into 256 slices and maps them to a monome-style gr
 
 - Import audio from a YouTube link, or load an audio/video file from your device.
 - Sequence 256 slices on a responsive 16 × 16 grid, with all enabled steps in a column triggering together.
-- Scroll over a row to change its assigned slice, paint steps by dragging, or move an active step within its row with **Shift + drag**.
-- Shape sounds with length, attack, release, level, pitch, and pan controls. Set global defaults or per-pad overrides.
+- Choose a row’s sound with the Source slice dropdown, paint steps by dragging, or move an active step within its row with **Shift + drag**.
+- Shape sounds with length, attack, release, level, pitch, and pan controls. Set global defaults or overrides shared across a row.
 - Add step-based pitch, volume, or pan modulation.
 - Save patterns and sound settings in the browser, or export and import them as JSON.
 - Render the current pattern as a stereo WAV or MP3 loop.
@@ -55,9 +55,24 @@ Then open [http://localhost:3001](http://localhost:3001).
 
 Press **Space** to start or stop playback. The shortcut is ignored while typing in a field.
 
+## Edit source slices
+
+The **Row** and **Source slice** dropdowns stay visible above the grid, so you can change a row’s sound at any time, including during playback. Expand **Waveform & boundaries** to see and edit the recording. Its waveform comes from the loaded audio and shows all 256 slice boundaries. The highlighted slice belongs to the selected row; selecting another pad in that row keeps the same source slice.
+
+Click the waveform, or choose a **Source slice** from the dropdown, to assign a slice to all 16 pads in that row. While stopped, the selection also previews the sound. **▶ Slice** auditions it with that row's sound settings and modulation; **▶ Raw** plays the original slice with a short anti-click fade.
+
+- **Beat** uses the automatic beat grid, with even divisions when the recording is too short for 256 beat-grid slices.
+- **Transient** places boundaries at prominent attacks and subdivides longer gaps to retain 256 slices.
+- **Equal** divides the recording evenly.
+- **Manual** starts from the current boundaries. Drag either highlighted edge or a marker at the top of the waveform. You can also edit **Start** and **End** numerically. The recording's first and last boundaries stay fixed, and neighboring slices cannot overlap.
+
+Use **+ / −** to zoom, **Fit** for the full recording, and **Locate** to focus on the selected slice. Drag the waveform away from a boundary, Shift-drag, or use the Position slider to pan. Horizontal trackpad scrolling and Shift-wheel also pan; Ctrl/⌘-wheel zooms at the pointer.
+
+**Reset slices** restores the last automatic slicing method. Replacing manual edits asks for confirmation inline. Slice edits affect preview, sequencing, and WAV/MP3 exports, and are included in saved patterns and JSON exports. After a browser reload, cached YouTube audio restores automatically; reimport the same local file to hear its saved edits. Loading a different recording generates fresh slices.
+
 ## Shape and modulate sounds
 
-In **Select steps** mode, pads control the pattern. **Edit sound** mode lets you select a pad without changing its on/off state. The Sound panel offers **All pads** defaults and **Selected pad** overrides. Each pad inherits global settings until you change one of its controls; use **Use global** or **Reset pad to global** to remove overrides.
+Use the **Grid action** dropdown to choose **Toggle steps** for changing the pattern or **Select pad** to inspect a pad without changing its on/off state. Source slice selection is available with either grid action. The Sound panel offers **All pads** defaults and **Selected row** overrides. Every pad in the selected row uses the same sound settings, and each control inherits its global value until you override it. Use **Use global** or **Reset row to global** to remove row overrides.
 
 Length trims playback from the start of the assigned slice. Pitch shifts playback speed as well as pitch. Attack and release shape the note envelope; level is per voice, and pan positions it in the stereo field. A small edge fade helps prevent clicks.
 
@@ -65,7 +80,7 @@ Modulation can vary pitch, volume, or pan on each newly triggered step. Choose a
 
 ## Patterns and audio storage
 
-Patterns, row slice assignments, tempo, volume, sound settings, and modulation are saved in this browser. **Export pattern** downloads a JSON session that does not contain audio. Importing that file restores the pattern and settings; load the matching recording separately.
+Patterns, source slice boundaries, row slice assignments, tempo, volume, sound settings, and modulation are saved in this browser. **Export pattern** downloads a JSON session that does not contain audio. Importing that file restores the pattern and settings; load the matching recording separately.
 
 YouTube audio is cached on this computer in `.cache/audio` so it can be reloaded later. The cache is limited to 200 MB, entries expire after 30 days, and imports prune expired or older files. Local files remain in memory and are not cached. Stepfield currently loads one source recording at a time.
 
