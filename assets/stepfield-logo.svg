@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="390" height="64" viewBox="0 0 390 64" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="54" viewBox="0 0 280 54" role="img" aria-labelledby="title">
   <title id="title">Stepfield</title>
-  <g shape-rendering="crispEdges">
+  <g transform="translate(27 5)" shape-rendering="crispEdges">
     <rect x="0" y="0" width="8" height="8" rx="1" fill="#C6616C"/>
     <rect x="12" y="0" width="8" height="8" rx="1" fill="#E3A553"/>
     <rect x="24" y="0" width="8" height="8" rx="1" fill="#EBCB82"/>
@@ -18,5 +18,5 @@
     <rect x="24" y="36" width="8" height="8" rx="1" fill="#B28EAA"/>
     <rect x="36" y="36" width="8" height="8" rx="1" fill="#DDE3ED"/>
   </g>
-  <text x="62" y="47" fill="#F0F3F4" font-family="Inter, DM Sans, Arial, sans-serif" font-size="38" font-weight="650" letter-spacing="-1.5">Stepfield</text>
+  <text x="87" y="40" fill="#F0F3F4" font-family="Inter, DM Sans, Arial, sans-serif" font-size="38" font-weight="650" letter-spacing="-1.5" textLength="166" lengthAdjust="spacingAndGlyphs">Stepfield</text>
 </svg>
