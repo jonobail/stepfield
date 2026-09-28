@@ -49,4 +49,5 @@ test.describe('touch audio activation', () => {
     await expect.poll(()=>page.evaluate(()=>window.outputPeak())).toBeGreaterThan(.002);
     await page.getByRole('button',{name:'■ Stop',exact:true}).tap();
   });
+
 });

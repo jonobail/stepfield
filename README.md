@@ -19,12 +19,12 @@ Browser tests: run `npx playwright install --with-deps chromium`, `npm run build
 ## Play
 
 1. Paste a YouTube video link and click Import YouTube audio, or import a local audio/video file. YouTube imports show download/conversion status, then fill the grid with slices. Local files stay in your browser. No video is displayed. WAV and MP3 are good local fallbacks when a video codec is unsupported.
-2. The entire audio track is divided into 256 equal slices (within one audio frame). Slice 1 is top left, slice 16 is top right, slice 17 starts the next row, and slice 256 is bottom right.
+2. The audio track is split into 256 slices, aligned to a detected beat grid when possible. Each sequencer row uses one shared slice. Scroll over a row to cycle through its slices.
 3. Click a square in Select steps mode to enable it and hear its slice while stopped. Turning a step off does not cut off its preview. While playing, clicks change the pattern; newly enabled slices join when their column next triggers. Use Edit sound to select a pad without changing the pattern, then Preview slice to hear it.
 4. Press Play. The playhead sweeps left to right over 16 sixteenth-note columns and loops. All enabled squares in a column start simultaneously. Each slice plays for its configured length, overlapping other slices and subsequent loops.
-5. Set tempo (30–300 BPM) and volume above the grid. Press **Space** to start/stop (ignored while typing or editing inputs, and on links or disclosure controls). Stop silences all voices and resets the playhead. Clear pattern, in Session, also stops playback.
+5. Set tempo (30–300 BPM) and volume above the grid. Press **Space** to start/stop (ignored while typing or editing inputs, and on links or disclosure controls). Stop silences all voices and resets the playhead. Clear pattern, beside Stop, also stops playback. Use the session controls to download one rendered loop as WAV or MP3. The export follows tempo, active steps, row slices, pad and global sound settings, modulation, and master volume. The WAV is stereo 16-bit PCM; MP3 is encoded locally by the app’s FFmpeg service. Longer modulation cycles export all four bars so the loop returns to its starting modulation phase.
 
-The sidebar shows one compact panel at a time: **Source** for imports, **Sound** for sample controls, **Mod** for tempo-synced step modulation, and **Session** for pattern import/export and clearing. Importing audio opens Sound automatically. Edit sound also opens the selected pad’s controls. The flat square pads use a blue-grey palette. One playhead overlay and targeted light updates minimize grid redraws.
+YouTube import and session import/export stay visible above the grid. The sticky playback bar keeps Play, Stop, Clear pattern, tempo, and master volume within reach. Sound and Modulation are open sections beside the grid on desktop and below it on phones, with no tabs or nested scrolling. The Sound controls show length, level, pitch, pan, attack, and release together; choose All pads or Selected pad to set their scope. Jump links take you directly to Source, Sound, Modulation, or Session. Cached audio management remains available from the source section. The flat square pads use a blue-grey palette. One playhead overlay and targeted light updates minimize grid redraws.
 
 Audio uses clock-scheduled Web Audio sources, short edge fades, headroom, and a dynamics compressor. The full-height playhead marker follows the audio clock. Pattern edits reconcile already queued notes that have not started, so enabling/disabling a square just before a column arrives changes that event. Tempo changes affect unscheduled steps; up to 100 ms may already be scheduled. Background-tab throttling can interrupt scheduling; missed steps are skipped rather than replayed in a burst.
 
@@ -36,7 +36,7 @@ One source recording fills the grid at a time. Files over 150 MB are rejected; d
 
 ## Sample shaping
 
-The Sound panel has **All pads** (global defaults) and **Selected pad** scopes. Use **Edit sound** above the grid to select a pad without changing its active step. Preview and sequencer playback use the same sound settings.
+The Sound section has **All pads** (global defaults) and **Selected pad** scopes. Use **Edit sound** above the grid to select a pad without changing its active step. Preview and sequencer playback use the same sound settings.
 
 - **Length:** 0.1–100% of the original slice, with the resulting playback duration in milliseconds. The lower bound is 1 ms unless the slice itself is shorter. Blip sets approximately 10 ms of source audio; Full slice restores 100%.
 - **Attack / release:** fade-in and fade-out in milliseconds, fitted inside the playback window. A tiny edge fade remains at zero to reduce clicks.
@@ -50,7 +50,7 @@ Changes apply to the next trigger, including queued notes that have not started.
 
 ## Step modulation
 
-Open **Mod** and enable modulation to vary **pitch**, **volume**, or **pan** across newly triggered slices. Choose sine, triangle, or square shape, a cycle from a quarter note to four bars, and depth from 0–100%. This is step-sampled modulation: values are evaluated when each column triggers and held for that slice, rather than sweeping continuously through already playing audio. Pads in the same column share a modulation phase while retaining their individual settings.
+In **Modulation**, enable modulation to vary **pitch**, **volume**, or **pan** across newly triggered slices. Choose sine, triangle, or square shape, a cycle from a quarter note to four bars, and depth from 0–100%. This is step-sampled modulation: values are evaluated when each column triggers and held for that slice, rather than sweeping continuously through already playing audio. Pads in the same column share a modulation phase while retaining their individual settings.
 
 Pitch depth reaches ±12 semitones, with the final pitch limited to ±24; it changes playback duration as well as pitch. Volume modulation attenuates the existing pad level without boosting it. Pan offsets are limited to the left/right bounds. The phase resets when Play starts and continues across grid loops, so two- and four-bar cycles span multiple passes. Preview uses the starting phase. Modulation is off by default and saved with patterns; older patterns retain their sound.
 

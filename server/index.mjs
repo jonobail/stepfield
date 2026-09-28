@@ -4,7 +4,7 @@ import { stat } from 'node:fs/promises';
 import { resolve, join, extname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { networkInterfaces, hostname } from 'node:os';
-import { MediaLibrary } from './media.mjs';
+import { MediaLibrary, encodeMp3 } from './media.mjs';
 
 export function allowedHost(host, interfaces = networkInterfaces()) {
   try {
@@ -32,6 +32,13 @@ export function createApp(library = new MediaLibrary()) {
       }
       const job = url.pathname.match(/^\/api\/youtube\/([\w-]{11})$/);
       if (req.method === 'GET' && job) { const state = library.jobs.get(job[1]) || await library.cached(job[1]); return json(res,state ? 200 : 404,state || {error:'Import expired. Submit the link again.'}); }
+      if (req.method === 'POST' && url.pathname === '/api/encode-mp3') {
+        if ((req.headers.origin && new URL(req.headers.origin).host !== host) || !req.headers['content-type']?.startsWith('audio/wav')) return json(res,403,{error:'Use the app to export MP3 audio.'});
+        const chunks=[];let size=0;
+        for await (const chunk of req) { size+=chunk.length;if(size>16*1024*1024) return json(res,413,{error:'Loop is too large to convert. Download WAV instead.'});chunks.push(chunk); }
+        try { const mp3=await encodeMp3(Buffer.concat(chunks));res.writeHead(200,{'Content-Type':'audio/mpeg','Content-Length':mp3.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(mp3); }
+        catch(error) { return json(res,422,{error:/ENOENT/.test(error.message)?'FFmpeg is unavailable. Download WAV instead.':'Could not convert this loop to MP3. Download WAV instead.'}); }
+      }
       if (req.method === 'GET' && url.pathname === '/api/storage') return json(res,200,await library.listCached());
       const storedAudio = url.pathname.match(/^\/api\/storage\/([\w-]{11})$/);
       if (req.method === 'DELETE' && storedAudio) {

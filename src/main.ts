@@ -7,51 +7,42 @@ import { getRowColor, TERMINAL_ROW_COLORS } from './terminal-theme';
 
 @Component({selector:'app-root', standalone:true, host:{'(document:keydown)':'onKeydown($event)','(document:pointermove)':'continuePadGesture($event)','(document:pointerup)':'endPadGesture($event)','(document:pointercancel)':'endPadGesture($event)'}, template:`
 <header class="app-header"><a class="brand" href="/" aria-label="Stepfield home"><span class="brand-mark" aria-hidden="true">@for (color of logoColors; track $index) {<i [style.background]="color"></i>}</span>Stepfield</a><span class="online" [class.is-playing]="running()"><i></i>{{ running() ? 'Playing' : loaded() ? 'Ready' : 'No audio loaded' }}</span></header>
-<main><div class="workspace"><section class="instrument" aria-label="Step sequencer">
-<div class="toolbar"><div class="switch" aria-label="Grid mode"><button [class.chosen]="mode() === 'pattern'" [attr.aria-pressed]="mode() === 'pattern'" (click)="mode.set('pattern')">Select steps</button><button [class.chosen]="mode() === 'edit'" [attr.aria-pressed]="mode() === 'edit'" (click)="editMode()">Edit sound</button></div><div class="transport"><button class="play" [disabled]="!loaded() || loading() || running()" (click)="start()" title="Play · Space">{{ loading() ? 'Loading audio…' : !loaded() ? 'Load audio to play' : running() ? 'Playing' : '▶ Play' }}</button><button class="stop" (click)="stop()" title="Stop · Space">■ Stop</button></div></div>
-<div class="transport-settings"><label class="tempo">BPM<input aria-label="Tempo · BPM" type="number" min="30" max="300" [value]="bpm()" (change)="setTempo($event)"></label><label class="master-volume">Volume<input aria-label="Volume · %" type="range" min="0" max="100" [value]="volume()" (input)="setVolume($event)"><span>{{ volume() }}%</span></label><span class="shortcut"><kbd>space</kbd> play / stop</span></div>
+<main>
+<section id="panel-source" class="source-deck" aria-label="Source controls"><div class="source-deck-heading"><div class="source-summary"><span class="source-icon" aria-hidden="true">♫</span><div><p class="source-name" [title]="fileName()">{{ fileName() || 'Load a recording' }}</p><span class="source-meta">{{ loaded() ? duration().toFixed(1) + ' s · 256 slices' : 'YouTube or local file' }}</span></div></div><section id="panel-session" class="session-actions" aria-label="Session controls"><span class="section-label">Session</span><button class="connect" (click)="exportSession()">Export pattern ↗</button><label class="file-picker">Import pattern<input aria-label="Import pattern" type="file" accept="application/json" (change)="importSession($event)"></label><button class="connect loop-export" [disabled]="exporting() || !loaded() || !enabledCount()" (click)="downloadLoop('wav')">{{ exporting() ? 'Rendering loop…' : 'Download loop · WAV' }}</button><button class="connect loop-export" [disabled]="exporting() || !loaded() || !enabledCount()" (click)="downloadLoop('mp3')">Download loop · MP3</button></section></div><form class="youtube-import" (submit)="$event.preventDefault(); importYoutube(youtube.value)"><label>YouTube link<input #youtube type="url" required placeholder="Paste a video link…" [disabled]="loading()"></label><button class="primary" type="submit" [disabled]="loading()">{{ loading() ? 'Importing…' : 'Import YouTube audio' }}</button></form>
+<div class="source-extras"><label class="file-picker">Choose audio or video<input aria-label="Import local audio or video" type="file" accept="audio/*,video/*,.wav,.mp3,.m4a,.mp4,.webm,.ogg,.flac" [disabled]="loading()" (change)="loadFile($event)"></label><button class="connect" [hidden]="!sourceId() || loaded()" [disabled]="loading()" (click)="reloadAudio()">Reload saved YouTube audio</button>
+</div><section class="storage-manager" aria-label="Audio storage"><button class="connect" (click)="toggleStorage()">{{ storageOpen() ? 'Hide audio storage' : 'Manage audio storage' }}</button>@if (storageOpen()) {<div class="storage-content"><p class="fine">YouTube audio is cached on this device. Local files stay in memory and are not saved.</p>@if (loaded() && !sourceId()) {<div class="storage-track"><span>{{ fileName() }} · current memory</span><button class="inherit" (click)="clearAudio()">Unload</button></div>}<div class="storage-summary"><span>{{ cachedTracks().length }} cached tracks</span><span>{{ formatBytes(storageBytes()) }}</span><button class="inherit" [disabled]="storageLoading()" (click)="refreshStorage()">{{ storageLoading() ? 'Refreshing…' : 'Refresh' }}</button></div>@for (track of cachedTracks(); track track.id) {<div class="storage-track"><span class="storage-title" [title]="track.title">{{ track.title }}<small>{{ track.duration ? (track.duration / 60).toFixed(1) + ' min · ' : '' }}{{ formatBytes(track.bytes) }}</small></span><button class="inherit danger" [disabled]="loading()" [attr.aria-label]="'Remove ' + track.title" (click)="removeCachedTrack(track.id)">Remove</button></div>}@if (!cachedTracks().length && !storageLoading()) {<p class="fine">No cached YouTube tracks.</p>}</div>}</section>
+</section>
+<div class="status-bar"><p class="status" role="status">{{ message() }}</p><span>16 × 16</span></div>
+<div class="performance-bar" aria-label="Sequencer controls"><div class="toolbar"><div class="switch" aria-label="Grid mode"><button [class.chosen]="mode() === 'pattern'" [attr.aria-pressed]="mode() === 'pattern'" (click)="mode.set('pattern')">Select steps</button><button [class.chosen]="mode() === 'edit'" [attr.aria-pressed]="mode() === 'edit'" (click)="editMode()">Edit sound</button></div><div class="transport"><button class="play" [disabled]="!loaded() || loading() || running()" (click)="start()" title="Play · Space">{{ loading() ? 'Loading audio…' : !loaded() ? 'Load audio to play' : running() ? 'Playing' : '▶ Play' }}</button><button class="stop" (click)="stop()" title="Stop · Space">■ Stop</button><button class="clear-pattern" (click)="clearPattern()">Clear pattern</button></div></div>
+<div class="transport-settings"><label class="tempo">BPM<input aria-label="Tempo · BPM" type="number" min="30" max="300" [value]="bpm()" (change)="setTempo($event)"></label><label class="master-volume">Volume<input aria-label="Volume · %" type="range" min="0" max="100" [value]="volume()" (input)="setVolume($event)"><span>{{ volume() }}%</span></label><nav class="control-jumps" aria-label="Jump to controls"><a href="#panel-source">Source</a><a href="#panel-sound">Sound</a><a href="#panel-mod">Modulation</a><a href="#panel-session">Session</a></nav></div>
+</div>
+<div class="workspace"><section class="instrument" aria-label="Step sequencer">
 <div class="grid-area"><div class="step-ruler" aria-hidden="true">@for (step of steps; track step) {<span [class.current]="column() === step">{{ step + 1 }}</span>}</div>
 <div class="grid" aria-label="256 audio slices, 16 rows and 16 time steps"><div class="playhead-track" aria-hidden="true">@if (column() >= 0) {<span class="playhead-marker" [style.grid-column]="column() + 1"></span>}</div>@for (enabled of pattern(); track $index) {<button #padButton class="pad" [class.assigned]="enabled" [class.selected]="selected() === $index" [class.dragging]="dragSource() === $index" [class.drop-target]="canDropOn($index)" [style.--row-color]="rowColors[$index]" [attr.data-pad-index]="$index" [attr.aria-pressed]="enabled" [attr.aria-label]="padLabel($index)" [title]="padLabel($index)" (pointerdown)="beginPadGesture($event,$index)" (wheel)="scrollRowSound($event,$index)" (click)="press($index,$event)"></button>}</div></div>
 <div class="grid-footer"><span>{{ enabledCount() }} active <span class="separator">/</span> 256 pads</span><span>{{ mode() === 'pattern' ? (running() ? 'Tap to change steps' : 'Tap to toggle + preview') + ' · Scroll a row to change its sound' : 'Select a pad to edit' }}</span><span class="step-count">{{ column() >= 0 ? (column() + 1).toString().padStart(2, '0') : '—' }} / 16</span></div>
 </section>
-<aside class="inspector" aria-label="Instrument controls"><div class="source-summary"><span class="source-icon" aria-hidden="true">♫</span><div><p class="source-name" [title]="fileName()">{{ fileName() || 'Load a recording' }}</p><span class="source-meta">{{ loaded() ? duration().toFixed(1) + ' s · 256 slices' : 'YouTube or local file' }}</span></div><button class="source-change" aria-label="Change source" title="Change source" (click)="panel.set('source')">↗</button></div>
-<nav class="panel-tabs" aria-label="Control panels">@for (tab of panels; track tab.id) {<button [class.chosen]="panel() === tab.id" [attr.aria-pressed]="panel() === tab.id" [attr.aria-controls]="'panel-' + tab.id" (click)="panel.set(tab.id)">{{ tab.label }}</button>}</nav>
-<div class="inspector-body">
-<section id="panel-source" [hidden]="panel() !== 'source'" aria-label="Source controls">
-<form class="youtube-import" (submit)="$event.preventDefault(); importYoutube(youtube.value)"><label>YouTube link<input #youtube type="url" required placeholder="Paste a video link…" [disabled]="loading()"></label><button class="primary" type="submit" [disabled]="loading()">{{ loading() ? 'Importing…' : 'Import YouTube audio' }}</button></form><p class="fine">Up to 15 minutes · audio cached locally</p>
-<div class="divider"><span>or</span></div><label class="file-picker">Choose audio or video<input aria-label="Import local audio or video" type="file" accept="audio/*,video/*,.wav,.mp3,.m4a,.mp4,.webm,.ogg,.flac" [disabled]="loading()" (change)="loadFile($event)"></label><button class="connect" [hidden]="!sourceId() || loaded()" [disabled]="loading()" (click)="reloadAudio()">Reload saved YouTube audio</button>
-<section class="storage-manager" aria-label="Audio storage"><button class="connect" (click)="toggleStorage()">{{ storageOpen() ? 'Hide audio storage' : 'Manage audio storage' }}</button>@if (storageOpen()) {<div class="storage-content"><p class="fine">YouTube audio is cached on this device. Local files stay in memory and are not saved.</p>@if (loaded() && !sourceId()) {<div class="storage-track"><span>{{ fileName() }} · current memory</span><button class="inherit" (click)="clearAudio()">Unload</button></div>}<div class="storage-summary"><span>{{ cachedTracks().length }} cached tracks</span><span>{{ formatBytes(storageBytes()) }}</span><button class="inherit" [disabled]="storageLoading()" (click)="refreshStorage()">{{ storageLoading() ? 'Refreshing…' : 'Refresh' }}</button></div>@for (track of cachedTracks(); track track.id) {<div class="storage-track"><span class="storage-title" [title]="track.title">{{ track.title }}<small>{{ track.duration ? (track.duration / 60).toFixed(1) + ' min · ' : '' }}{{ formatBytes(track.bytes) }}</small></span><button class="inherit danger" [disabled]="loading()" [attr.aria-label]="'Remove ' + track.title" (click)="removeCachedTrack(track.id)">Remove</button></div>}@if (!cachedTracks().length && !storageLoading()) {<p class="fine">No cached YouTube tracks.</p>}</div>}</section>
-</section>
-<section id="panel-sound" class="sound-panel" [hidden]="panel() !== 'sound'" aria-label="Sound controls">
+<aside class="inspector" aria-label="Instrument controls"><section id="panel-sound" class="sound-panel" aria-label="Sound controls"><div class="section-heading"><h2>Sound</h2><span>Shape your slices</span></div>
 <div class="switch sound-scope"><button [class.chosen]="soundScope() === 'global'" (click)="soundScope.set('global')">All pads</button><button [class.chosen]="soundScope() === 'pad'" (click)="soundScope.set('pad')">Selected pad</button></div>
 <div class="sound-heading"><span>{{ soundScope() === 'global' ? 'Global defaults' : 'Slice ' + (rowSamples()[selectedRow()] + 1).toString().padStart(3, '0') }}</span><span class="source-meta">{{ soundScope() === 'pad' ? 'Per-pad overrides' : 'Inherited by pads' }}</span></div>
-@for (control of soundControls.slice(0, 1); track control.key) {
-<div class="sound-control"><div class="control-heading"><label [for]="'sound-' + control.key">{{ control.label }} <span class="dim">{{ control.unit }}</span></label><input [id]="'sound-' + control.key" [attr.aria-label]="control.label + ' value'" type="number" [min]="control.min" [max]="control.max" [step]="control.step" [value]="editorSound()[control.key]" (change)="setSound(control.key, $event)"></div><input type="range" [attr.aria-label]="control.label" [min]="control.min" [max]="control.max" [step]="control.step" [value]="editorSound()[control.key]" (input)="setSound(control.key, $event)">
-@if (soundScope() === 'pad') {<button class="inherit" [disabled]="!hasOverride(control.key)" (click)="inheritSound(control.key)">{{ hasOverride(control.key) ? '↩ Use global length' : 'Following global length' }}</button>}</div>}
-<div class="length-presets"><button [disabled]="!loaded()" (click)="lengthPreset('blip')">Blip · 10 ms</button><button (click)="lengthPreset('full')">Full slice</button></div><p class="slice-time">{{ shapedTime() }}</p>
-<details class="sound-details"><summary>Tone &amp; envelope</summary>
-@for (control of soundControls.slice(1); track control.key) {
+<div class="sound-controls">@for (control of soundControls; track control.key) {
 <div class="sound-control"><div class="control-heading"><label [for]="'sound-' + control.key">{{ control.label }} <span class="dim">{{ control.unit }}</span></label><input [id]="'sound-' + control.key" [attr.aria-label]="control.label + ' value'" type="number" [min]="control.min" [max]="control.max" [step]="control.step" [value]="editorSound()[control.key]" (change)="setSound(control.key, $event)"></div><input type="range" [attr.aria-label]="control.label" [min]="control.min" [max]="control.max" [step]="control.step" [value]="editorSound()[control.key]" (input)="setSound(control.key, $event)">
 @if (soundScope() === 'pad') {<button class="inherit" [disabled]="!hasOverride(control.key)" (click)="inheritSound(control.key)">{{ hasOverride(control.key) ? '↩ Use global ' + control.label.toLowerCase() : 'Following global ' + control.label.toLowerCase() }}</button>}</div>}
-<p class="fine">Pitch changes speed. Pan: −100 L / +100 R.</p></details>
-<button class="connect" (click)="testOutput()">Test speaker output</button><button class="connect" [disabled]="!loaded() || loading()" (click)="audition(selected(), soundScope() === 'global')">▶ Preview {{ soundScope() === 'global' ? 'global sound' : 'slice' }}</button><button class="clear" (click)="resetSound()">{{ soundScope() === 'global' ? 'Reset global defaults' : 'Reset pad to global' }}</button>
+</div><div class="length-presets"><button [disabled]="!loaded()" (click)="lengthPreset('blip')">Blip · 10 ms</button><button (click)="lengthPreset('full')">Full slice</button></div><p class="slice-time">{{ shapedTime() }}</p>
+<div class="sound-actions"><button class="connect" [disabled]="!loaded() || loading()" (click)="audition(selected(), soundScope() === 'global')">▶ Preview {{ soundScope() === 'global' ? 'global sound' : 'slice' }}</button><button class="clear" (click)="resetSound()">{{ soundScope() === 'global' ? 'Reset global defaults' : 'Reset pad to global' }}</button></div>
 </section>
-<section id="panel-mod" [hidden]="panel() !== 'mod'" aria-label="Modulation controls"><div class="mod-heading"><span>Step modulation</span><label class="mod-enable"><input type="checkbox" aria-label="Enable modulation" [checked]="modulation().enabled" (change)="setModulation('enabled', $event)">On</label></div>
+<section id="panel-mod" aria-label="Modulation controls"><div class="mod-heading"><h2>Modulation</h2><label class="mod-enable"><input type="checkbox" aria-label="Enable modulation" [checked]="modulation().enabled" (change)="setModulation('enabled', $event)">On</label></div>
 <p class="fine">Vary each new slice in time with the sequence.</p>
 <label>Target<select aria-label="Modulation target" [value]="modulation().target" (change)="setModulation('target', $event)"><option value="pan">Pan · left / right</option><option value="volume">Volume · pulse</option><option value="pitch">Pitch · up / down</option></select></label>
 <div class="mod-pair"><label>Cycle<select aria-label="Modulation cycle" [value]="modulation().steps" (change)="setModulation('steps', $event)">@for (rate of modulationRates; track rate.steps) {<option [value]="rate.steps">{{ rate.label }}</option>}</select></label><label>Shape<select aria-label="Modulation shape" [value]="modulation().waveform" (change)="setModulation('waveform', $event)"><option value="sine">Sine</option><option value="triangle">Triangle</option><option value="square">Square</option></select></label></div>
 <label class="mod-depth">Depth <span>{{ modulation().depth }}%</span><input type="range" aria-label="Modulation depth" min="0" max="100" [value]="modulation().depth" (input)="setModulation('depth', $event)"></label>
 <p class="fine">{{ modulation().target === 'pitch' ? 'Up to ±12 semitones. Pitch also changes slice length.' : modulation().target === 'pan' ? 'Adds stereo movement to each pad’s pan setting.' : 'Higher depth makes the quiet steps softer.' }} Resets on Play; sounding slices keep their values.</p></section>
-<section id="panel-session" [hidden]="panel() !== 'session'" aria-label="Session controls"><p class="section-label">Pattern</p><p class="fine">Each row repeats its mapped sound on every active step. Scroll over a row to cycle through slices.</p><p class="fine">Drag across pads to paint a run of steps. Shift-drag a lit pad to move it within its row.</p><button class="connect" (click)="exportSession()">Export pattern ↗</button><label class="file-picker">Import pattern<input aria-label="Import pattern" type="file" accept="application/json" (change)="importSession($event)"></label><p class="fine">Patterns and sound settings save on this device. Exports do not include audio.</p><button class="clear danger" (click)="clearPattern()">Clear pattern</button></section>
-</div></aside></div>
-<div class="status-bar"><p class="status" role="status">{{ message() }}</p><span>16 × 16</span></div>
+<button class="connect output-test" (click)="testOutput()">Test speaker output</button></aside></div>
+<p class="session-note">Patterns save on this device. Exports include settings, not audio.</p>
 </main>`})
 class App implements OnDestroy, AfterViewInit {
   readonly logoColors = Array.from({length:16},(_,index) => TERMINAL_ROW_COLORS[index % TERMINAL_ROW_COLORS.length]);
   readonly rowColors = Array.from({length:256}, (_, index) => getRowColor(Math.floor(index / 16)));
   readonly steps = Array.from({length:16}, (_, i) => i);
-  readonly panels = [{id:'source',label:'Source'},{id:'sound',label:'Sound'},{id:'mod',label:'Mod'},{id:'session',label:'Session'}] as const;
-  panel = signal<'source'|'sound'|'mod'|'session'>('source');
   readonly modulationRates = MODULATION_RATES;
   modulation = signal<Modulation>({...DEFAULT_MODULATION});
   @ViewChildren('padButton') private padButtons!: QueryList<ElementRef<HTMLButtonElement>>;
@@ -72,7 +63,7 @@ class App implements OnDestroy, AfterViewInit {
   private deferPadPreview = false;
   private pendingPadPreview = -1;
   private paintEnabled = true;
-  running = signal(false); loading = signal(false); loaded = signal(false); column = signal(-1);
+  running = signal(false); loading = signal(false); loaded = signal(false); exporting = signal(false); column = signal(-1);
   private sliceMap:AudioSlice[] = [];
   sourceId = signal(''); fileName = signal(''); duration = signal(0); bpm = signal(120); volume = signal(70);
   storageOpen = signal(false); storageLoading = signal(false); storageBytes = signal(0);
@@ -99,7 +90,7 @@ class App implements OnDestroy, AfterViewInit {
     if (event.repeat) return;
     if (this.running()) this.stop(); else void this.start();
   }
-  editMode() { this.mode.set('edit'); this.soundScope.set('pad'); this.panel.set('sound'); }
+  editMode() { this.mode.set('edit'); this.soundScope.set('pad'); }
   private audio() {
     // Request media playback on iOS rather than the default ambient/ringer session.
     // This is optional; browsers without the Audio Session API retain normal Web Audio.
@@ -116,7 +107,7 @@ class App implements OnDestroy, AfterViewInit {
     const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = ''; if (!file || this.loading()) return;
     if (file.size > 150 * 1024 * 1024) { this.message.set('Choose a file smaller than 150 MB to limit browser memory use.'); return; }
     this.stop(); this.loading.set(true); this.message.set('Decoding audio…');
-    try { const decoded = await this.audio().decodeAudioData(await file.arrayBuffer()); if (decoded.length < 256) throw new Error('Too short'); this.buffer = decoded; this.duration.set(decoded.duration); this.fileName.set(file.name); this.sourceId.set(''); const analysis = this.mapAudio(decoded); this.loaded.set(true); this.panel.set('sound'); this.persist(); this.message.set(this.sliceMapMessage(analysis)); }
+    try { const decoded = await this.audio().decodeAudioData(await file.arrayBuffer()); if (decoded.length < 256) throw new Error('Too short'); this.buffer = decoded; this.duration.set(decoded.duration); this.fileName.set(file.name); this.sourceId.set(''); const analysis = this.mapAudio(decoded); this.loaded.set(true); this.persist(); this.message.set(this.sliceMapMessage(analysis)); }
     catch { this.message.set('Could not decode this file. Try WAV, MP3, or an audio track exported from your video.'); }
     finally { this.loading.set(false); }
   }
@@ -139,7 +130,7 @@ class App implements OnDestroy, AfterViewInit {
       // Decode at the stored sample rate to avoid expanding to the device rate in memory.
       const decoded = await new OfflineAudioContext(2,1,32000).decodeAudioData(await audio.arrayBuffer());
       if (controller.signal.aborted) return;
-      this.buffer = decoded; this.duration.set(decoded.duration); this.fileName.set(job.title); this.sourceId.set(job.id); const analysis = this.mapAudio(decoded); this.loaded.set(true); this.panel.set('sound'); this.persist();
+      this.buffer = decoded; this.duration.set(decoded.duration); this.fileName.set(job.title); this.sourceId.set(job.id); const analysis = this.mapAudio(decoded); this.loaded.set(true); this.persist();
       this.message.set(`${this.sliceMapMessage(analysis)} · ${(job.bytes / 1_000_000).toFixed(2)} MB${job.cached ? ' · loaded from cache' : ''}. Select squares and press Play.`);
     } catch (error) { this.message.set(error instanceof Error && error.name !== 'AbortError' ? error.message : 'Import timed out. Try again or choose a shorter video.'); }
     finally { clearTimeout(timeout); this.importController = undefined; this.loading.set(false); }
@@ -176,10 +167,10 @@ class App implements OnDestroy, AfterViewInit {
       if (!audio.ok) throw new Error('Saved audio expired. Open Source to import the link again.');
       const decoded = await new OfflineAudioContext(2,1,32000).decodeAudioData(await audio.arrayBuffer());
       if (this.sourceId() !== id) return;
-      this.buffer = decoded; this.duration.set(decoded.duration); this.mapAudio(decoded); this.loaded.set(true); this.panel.set('sound');
+      this.buffer = decoded; this.duration.set(decoded.duration); this.mapAudio(decoded); this.loaded.set(true);
       this.message.set('Cached audio ready. Press Space or Play.');
     } catch (error) {
-      if (this.sourceId() === id) { this.panel.set('source'); this.message.set(error instanceof Error ? error.message : 'Could not restore cached audio. Open Source to import it again.'); }
+      if (this.sourceId() === id) { this.message.set(error instanceof Error ? error.message : 'Could not restore cached audio. Open Source to import it again.'); }
     } finally { this.loading.set(false); }
   }
   reloadAudio() { if (this.sourceId()) void this.importYoutube('https://www.youtube.com/watch?v=' + this.sourceId()); }
@@ -254,7 +245,7 @@ class App implements OnDestroy, AfterViewInit {
     // Keep click activation for keyboard and assistive input, which has detail === 0.
     if (event && event.detail > 0) return;
     this.selected.set(index);
-    if (this.mode() === 'edit') { this.soundScope.set('pad'); this.panel.set('sound'); return; }
+    if (this.mode() === 'edit') { this.soundScope.set('pad'); return; }
     this.pattern.update(p => p.map((v,i) => i === index ? !v : v));
     // Reconcile queued steps so edits made just before the playhead arrives are heard.
     const now = this.context?.currentTime ?? 0;
@@ -419,6 +410,69 @@ class App implements OnDestroy, AfterViewInit {
   private session() { return {version:1,pattern:this.pattern(),rowSamples:this.rowSamples(),sampleAssignments:Array.from({length:256},(_,index) => this.rowSamples()[Math.floor(index / 16)]),bpm:this.bpm(),volume:this.volume(),source:this.fileName(),sourceId:this.sourceId(),globalSound:this.globalSound(),padSounds:this.padSounds(),modulation:this.modulation()}; }
   private restore(data:unknown) { const d = data as ReturnType<App['session']>; if (!d || d.version !== 1 || !Array.isArray(d.pattern) || d.pattern.length !== 256 || !d.pattern.every(v => typeof v === 'boolean') || !Number.isFinite(d.bpm) || d.bpm < 30 || d.bpm > 300 || !Number.isFinite(d.volume) || d.volume < 0 || d.volume > 100) throw new Error('Invalid pattern'); const legacySamples = d.sampleAssignments === undefined ? Array.from({length:256},(_,index) => Math.floor(index / 16) * 16) : d.sampleAssignments; if (!Array.isArray(legacySamples) || legacySamples.length !== 256 || !legacySamples.every(sample => Number.isInteger(sample) && sample >= 0 && sample < 256)) throw new Error('Invalid sample assignments'); const rowSamples = d.rowSamples ?? Array.from({length:16},(_,row) => legacySamples[row * 16]); if (!Array.isArray(rowSamples) || rowSamples.length !== 16 || !rowSamples.every(sample => Number.isInteger(sample) && sample >= 0 && sample < 256)) throw new Error('Invalid row sounds'); const sounds = restoreSounds(d.globalSound,d.padSounds); const modulation = restoreModulation(d.modulation); this.modulation.set(modulation); this.globalSound.set(sounds.global); this.padSounds.set(sounds.pads); if (!this.loaded()) { this.sourceId.set(typeof d.sourceId === 'string' && /^[\w-]{11}$/.test(d.sourceId) ? d.sourceId : ''); this.fileName.set(typeof d.source === 'string' ? d.source.slice(0,200) : ''); } this.pattern.set([...d.pattern]); this.rowSamples.set([...rowSamples]); this.bpm.set(d.bpm); this.volume.set(d.volume); if (this.master && this.context) this.master.gain.setTargetAtTime(d.volume / 100,this.context.currentTime,.01); }
   private persist() { try { localStorage.setItem('stepfield-session-v1',JSON.stringify(this.session())); } catch { this.message.set('Storage unavailable. Export your pattern to keep it.'); } }
+  private async renderLoopWav() {
+    if (!this.buffer || !this.enabledCount()) throw new Error('Load audio and enable at least one step before exporting a loop.');
+    const bpm=this.bpm(),volume=this.volume(),pattern=[...this.pattern()],rowSamples=[...this.rowSamples()];
+    const global={...this.globalSound()},padSounds=this.padSounds().map(sound=>({...sound})),modulation={...this.modulation()};
+    const cycleSteps=modulation.enabled ? Math.max(16,modulation.steps) : 16;
+    const stepDuration=60/bpm/4,cycleDuration=cycleSteps*stepDuration,sampleRate=32000;
+    const buffer=this.buffer;let longestVoice=0;
+    for(let step=0;step<cycleSteps;step++) for(let row=0;row<16;row++) {
+      const index=row*16+step%16;if(!pattern[index]) continue;
+      const shape=voiceShape(this.audioSlice(rowSamples[row]).duration,modulateSound(effectiveSound(global,padSounds[index]),modulation,step));
+      longestVoice=Math.max(longestVoice,shape.duration);
+    }
+    const framesPerCycle=Math.ceil(cycleDuration*sampleRate),prerollCycles=Math.max(1,Math.ceil(longestVoice/cycleDuration));
+    // Prior cycles supply ringing note tails across the loop boundary.
+    const offline=new OfflineAudioContext(2,framesPerCycle*(prerollCycles+1),sampleRate);
+    const master=offline.createGain(),limiter=offline.createDynamicsCompressor();master.gain.value=volume/100;
+    limiter.threshold.value=-6;limiter.knee.value=6;limiter.ratio.value=12;master.connect(limiter);limiter.connect(offline.destination);
+    for(let step=0;step<cycleSteps*(prerollCycles+1);step++) {
+      const when=step*stepDuration;
+      const column=step%16;
+      for(let row=0;row<16;row++) {
+        const index=row*16+column;if(!pattern[index]) continue;
+        const bounds=this.audioSlice(rowSamples[row]);
+        const settings=effectiveSound(global,padSounds[index]);
+        const shape=voiceShape(bounds.duration,modulateSound(settings,modulation,step));
+        const source=offline.createBufferSource(),envelope=offline.createGain(),pan=offline.createStereoPanner();
+        source.buffer=buffer;source.playbackRate.value=shape.rate;pan.pan.value=shape.pan;
+        source.connect(envelope);envelope.connect(pan);pan.connect(master);
+        envelope.gain.setValueAtTime(0,when);envelope.gain.linearRampToValueAtTime(shape.gain,when+shape.attack);
+        envelope.gain.setValueAtTime(shape.gain,Math.max(when+shape.attack,when+shape.duration-shape.release));
+        envelope.gain.linearRampToValueAtTime(0,when+shape.duration);
+        source.start(when,bounds.offset,shape.sourceDuration);
+      }
+    }
+    const rendered=await offline.startRendering();
+    const wavBytes=44+framesPerCycle*2*2,wav=new ArrayBuffer(wavBytes),view=new DataView(wav);
+    const write=(offset:number,value:string)=>{for(let i=0;i<value.length;i++)view.setUint8(offset+i,value.charCodeAt(i));};
+    write(0,'RIFF');view.setUint32(4,wavBytes-8,true);write(8,'WAVE');write(12,'fmt ');view.setUint32(16,16,true);
+    view.setUint16(20,1,true);view.setUint16(22,2,true);view.setUint32(24,sampleRate,true);view.setUint32(28,sampleRate*4,true);
+    view.setUint16(32,4,true);view.setUint16(34,16,true);write(36,'data');view.setUint32(40,wavBytes-44,true);
+    for(let frame=0;frame<framesPerCycle;frame++) for(let channel=0;channel<2;channel++) {
+      const sample=Math.max(-1,Math.min(1,rendered.getChannelData(channel)[framesPerCycle*prerollCycles+frame]));
+      view.setInt16(44+(frame*2+channel)*2,Math.round(sample<0?sample*32768:sample*32767),true);
+    }
+    return wav;
+  }
+  async downloadLoop(format:'wav'|'mp3') {
+    if(this.exporting()) return;
+    this.exporting.set(true);this.message.set('Rendering a seamless loop from the current pattern…');
+    try {
+      const wav=await this.renderLoopWav();let blob:Blob,extension=format;
+      if(format==='mp3') {
+        this.message.set('Rendering loop · converting to MP3…');
+        const response=await fetch('/api/encode-mp3',{method:'POST',headers:{'Content-Type':'audio/wav'},body:wav});
+        if(!response.ok) {const error=await response.json().catch(()=>({}));throw new Error(error.error || 'MP3 conversion failed. Try downloading the WAV.');}
+        blob=await response.blob();
+      } else blob=new Blob([wav],{type:'audio/wav'});
+      const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;
+      a.download=`stepfield-${this.bpm()}bpm-${this.enabledCount()}steps.${extension}`;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000);
+      this.message.set(`Loop downloaded as ${format.toUpperCase()} · ${this.bpm()} BPM · ${Math.max(1,Math.round((format==='wav'?wav.byteLength:blob.size)/1_000_000))} MB.`);
+    } catch(error) {this.message.set(error instanceof Error?error.message:'Could not render the loop. Try WAV or reduce the tempo.');}
+    finally {this.exporting.set(false);}
+  }
   exportSession() { const url = URL.createObjectURL(new Blob([JSON.stringify(this.session(),null,2)],{type:'application/json'})); const a = document.createElement('a'); a.href = url; a.download = 'stepfield-pattern.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000); }
   async importSession(event:Event) { const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = ''; if (!file) return; try { if (file.size > 100_000) throw new Error(); const data = JSON.parse(await file.text()); this.restore(data); this.stop(); this.persist(); this.message.set('Pattern imported. Audio is not included; load the matching recording.'); } catch { this.message.set('Invalid pattern file. Choose an exported audio-grid pattern.'); } }
   ngOnDestroy() { this.importController?.abort(); this.stop(); if (this.context) { this.context.onstatechange = null; void this.context.close(); } }

@@ -67,3 +67,178 @@ select:focus-visible, input:focus-visible { outline-color: var(--text-secondary)
 .storage-track small { display: block; color: var(--text-muted); font-size: .72rem; }
 .storage-summary button, .storage-track button { flex: 0 0 auto; }
 .storage-track .danger { color: #C6616C; }
+
+/* Direct-access workspace: one page, no hidden settings panels or nested scrolling. */
+.source-deck { background: var(--surface-panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
+.source-deck-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 14px; }
+.source-summary { padding: 0; min-width: 0; flex: 1; }
+.source-name { font-size: 13px; }
+.source-meta { font-size: 11px; }
+.session-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; scroll-margin-top: 160px; }
+.session-actions .section-label { margin: 0 4px 0 0; color: var(--text-muted); font-size: 10px; }
+.session-actions .connect, .session-actions .file-picker { width: auto; margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; }
+.youtube-import { display: flex; align-items: end; gap: 10px; }
+.youtube-import label { flex: 1; margin: 0; min-width: 0; }
+.youtube-import input { margin-top: 6px; border-radius: 6px; }
+.youtube-import .primary { width: auto; min-height: 40px; padding: 10px 20px; border: 1px solid var(--border); border-radius: 6px; }
+.source-extras { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.source-extras .file-picker, .source-extras .connect { width: auto; padding: 6px 0; margin: 0; border: 0; background: none; text-align: left; font-size: 10px; }
+.storage-manager { margin-top: 0; }
+.storage-manager > .connect { width: auto; background: none; margin: 0; padding: 6px 0; border: 0; text-align: left; font-size: 10px; }
+.source-deck > .storage-manager { margin-top: 0; }
+.status-bar { padding: 10px 2px 14px; }
+.performance-bar { position: sticky; top: 0; z-index: 5; background: var(--surface-background); padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+.performance-bar .toolbar { flex-wrap: nowrap; }
+.transport button { min-height: 40px; border-radius: 6px; }
+.transport .play { border: 1px solid #66827a; background: #30453e; color: #d8eee4; }
+.transport .clear-pattern { margin-left: 8px; border: 1px solid #78565b; color: #dda6ab; }
+.transport-settings { margin: 10px 0 0; }
+.control-jumps { display: flex; gap: 6px; margin-left: auto; }
+.control-jumps a { padding: 8px; color: var(--text-secondary); text-decoration: none; font-size: 11px; border-radius: 4px; }
+.control-jumps a:hover { color: var(--text-primary); background: var(--surface-elevated); }
+.workspace { grid-template-columns: minmax(0,1fr) 320px; gap: 20px; }
+.instrument { padding: 16px; border-radius: 12px; }
+.inspector { border: 0; background: none; border-radius: 0; max-height: none; overflow: visible; gap: 16px; }
+.inspector > section { padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-panel); scroll-margin-top: 145px; }
+.source-deck { scroll-margin-top: 145px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .2px; color: var(--text-primary); }
+.section-heading > span { font-size: 10px; color: var(--text-muted); }
+.sound-scope { margin-bottom: 12px; border-radius: 6px; }
+.sound-scope button { border-radius: 4px; }
+.sound-heading { margin-bottom: 14px; }
+.sound-controls { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px 16px; }
+.sound-control { margin: 0; min-width: 0; }
+.control-heading { gap: 4px; }
+.control-heading input:not([type=range]) { width: 54px; padding: 6px 3px; border-radius: 4px; }
+.control-heading label, .control-heading .dim { font-size: 10px; }
+.sound-control input[type=range] { margin-top: 10px; }
+.length-presets { margin-top: 18px; }
+.length-presets button { border-radius: 5px; }
+.sound-actions { display: flex; gap: 10px; align-items: center; }
+.sound-actions .connect { flex: 1; width: auto; margin: 0; padding: 10px 8px; border-radius: 6px; }
+.sound-actions .clear { flex: 1; margin: 0; color: var(--text-secondary); line-height: 1.5; }
+.output-test.connect { width: auto; margin: 0; padding: 8px 0; border: 0; background: none; font-size: 10px; align-self: flex-start; }
+.session-note { color: var(--text-muted); font-size: 10px; margin: 20px 0 0; }
+@media(max-width:1050px) {
+  .workspace { grid-template-columns: minmax(0,1fr) 290px; gap: 14px; }
+  .instrument { padding: 12px; }
+  .inspector > section { padding: 12px; }
+}
+@media(max-width:800px) {
+  .workspace { grid-template-columns: 1fr; }
+  .inspector { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+  .output-test.connect { grid-column: 1 / -1; }
+}
+@media(max-width:560px) {
+  main { padding-inline: 12px; }
+  .app-header { padding: 18px 14px; }
+  .source-deck { padding: 12px; }
+  .source-deck-heading { display: block; margin-bottom: 14px; }
+  .session-actions { margin-top: 12px; }
+  .session-actions .connect, .session-actions .file-picker { padding: 8px 10px; }
+  .youtube-import { gap: 8px; flex-wrap: wrap; }
+  .youtube-import label { flex-basis: 100%; }
+  .youtube-import .primary { width: 100%; }
+  .performance-bar .toolbar { flex-wrap: wrap; gap: 8px; }
+  .performance-bar .switch { width: 100%; }
+  .performance-bar .switch button { flex: 1; min-height: 34px; }
+  .transport { width: 100%; margin: 0; gap: 8px; }
+  .transport button { flex: 1; padding: 8px 6px; min-height: 42px; font-size: 11px; white-space: nowrap; }
+  .transport .clear-pattern { margin-left: 0; }
+  .transport-settings { flex-wrap: wrap; gap: 10px 16px; }
+  .control-jumps { width: 100%; margin: 0; justify-content: space-between; border-top: 1px solid var(--border); }
+  .control-jumps a { padding: 9px 8px 2px; }
+  .inspector { display: flex; }
+  .inspector > section { padding: 16px; scroll-margin-top: 215px; }
+  .source-deck, .session-actions { scroll-margin-top: 215px; }
+  .sound-controls { gap: 18px 22px; }
+  .control-heading input:not([type=range]) { width: 64px; }
+  .control-heading label { font-size: 11px; }
+  .performance-bar { margin-bottom: 12px; }
+}
+
+/* A clearer wordmark with a larger 16 step mark. */
+.brand { gap: 14px; font-size: 38px; letter-spacing: -1.4px; }
+.brand-mark { grid-template-columns: repeat(4,8px); grid-template-rows: repeat(4,8px); gap: 3px; }
+.brand-mark i { width: 8px; height: 8px; border-radius: 2px; }
+
+/* Let tablets keep a readable grid while stacking the instrument controls. */
+@media(max-width:900px) {
+  .workspace { grid-template-columns: 1fr; gap: 14px; }
+  .instrument { padding: 16px; }
+  .inspector { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; }
+  .inspector > section { min-width: 0; }
+  .output-test.connect { grid-column: 1 / -1; }
+}
+
+@media(max-width:560px) {
+  body { min-width: 320px; }
+  main { padding-inline: max(12px,env(safe-area-inset-left)); padding-bottom: max(18px,env(safe-area-inset-bottom)); }
+  .app-header { padding: 15px max(14px,env(safe-area-inset-right)) 15px max(14px,env(safe-area-inset-left)); }
+  .brand { gap: 10px; font-size: 32px; }
+  .brand-mark { grid-template-columns: repeat(4,7px); grid-template-rows: repeat(4,7px); gap: 2px; }
+  .brand-mark i { width: 7px; height: 7px; }
+  .online { max-width: 42%; font-size: 10px; }
+  .online:not(.is-playing) { text-align: right; }
+  .workspace { min-width: 0; }
+  .instrument { padding: 10px; }
+  .grid { padding: 8px; gap: 3px; border-radius: 8px; }
+  .step-ruler { padding: 0 9px 6px; gap: 3px; font-size: 8px; }
+  .playhead-track { inset: 8px; gap: 3px; }
+  .pad { border-radius: 3px; }
+  .pad.selected { outline-offset: 1px; }
+  .grid-footer { gap: 5px; font-size: 8px; }
+  .grid-footer > span:first-child { flex: 0 0 auto; }
+  .grid-footer .step-count { flex: 0 0 auto; }
+  .inspector { display: flex; gap: 12px; }
+  .inspector > section { padding: 14px; }
+  .sound-controls { gap: 16px 12px; }
+  .source-deck-heading { gap: 10px; }
+  .session-actions { gap: 6px; }
+  .session-actions .section-label { width: 100%; }
+  .session-actions .connect, .session-actions .file-picker { flex: 1 1 auto; text-align: center; }
+  .youtube-import input, .inspector input:not([type=range]), .inspector select { font-size: 16px; }
+  input[type=range] { min-height: 28px; }
+  .control-jumps a { min-height: 38px; display: grid; place-items: center; }
+  .performance-bar { padding: 8px 0; }
+  .performance-bar .toolbar { gap: 6px; }
+  .transport button { min-height: 40px; }
+}
+
+@media(max-width:380px) {
+  .app-header { padding-inline: 12px; }
+  main { padding-inline: 10px; }
+  .brand { font-size: 30px; }
+  .brand-mark { grid-template-columns: repeat(4,6px); grid-template-rows: repeat(4,6px); gap: 2px; }
+  .brand-mark i { width: 6px; height: 6px; }
+  .online { font-size: 9px; }
+  .grid { padding: 7px; gap: 2px; }
+  .step-ruler { padding-inline: 8px; gap: 2px; font-size: 7px; }
+  .playhead-track { inset: 7px; gap: 2px; }
+  .grid-footer { font-size: 7px; }
+  .sound-controls { grid-template-columns: minmax(0,1fr); gap: 13px; }
+  .control-heading input:not([type=range]) { width: 76px; }
+}
+
+@media(max-width:900px) and (orientation:landscape) and (max-height:500px) {
+  .app-header { padding-block: 8px; }
+  .brand { font-size: 24px; }
+  .brand-mark { grid-template-columns: repeat(4,5px); grid-template-rows: repeat(4,5px); gap: 2px; }
+  .brand-mark i { width: 5px; height: 5px; }
+  .performance-bar { padding: 6px 0; }
+  .performance-bar .toolbar { flex-wrap: nowrap; }
+  .performance-bar .switch { width: auto; }
+  .transport { width: auto; margin-left: auto; }
+  .transport-settings { flex-wrap: nowrap; margin-top: 5px; }
+  .control-jumps { width: auto; border: 0; }
+  .control-jumps a { padding-block: 4px; }
+  .workspace { grid-template-columns: minmax(0,1fr) minmax(260px,.8fr); }
+  .inspector { display: flex; }
+  .youtube-import input, .inspector input:not([type=range]), .inspector select { font-size: 16px; }
+}
+.session-actions .loop-export { margin-top: 0; color: var(--text-primary); background: var(--surface-elevated); }
+.session-actions .loop-export:disabled { opacity: .45; }
+@media(max-width:560px) {
+  .session-actions .loop-export { flex: 1 1 40%; padding: 9px 6px; font-size: 10px; }
+}

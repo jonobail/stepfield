@@ -28,6 +28,19 @@ export function run(command, args, {timeout = 180_000, onOutput = () => {}} = {}
   });
 }
 
+export function encodeMp3(wav) {
+  if (!Buffer.isBuffer(wav) || wav.length < 44 || wav.length > 16 * 1024 * 1024 || wav.toString('ascii',0,4)!=='RIFF' || wav.toString('ascii',8,12)!=='WAVE') throw new Error('Invalid WAV loop.');
+  return new Promise((resolvePromise,reject)=>{
+    const child=spawn(process.env.FFMPEG_PATH || ffmpeg,['-hide_banner','-loglevel','error','-nostdin','-f','wav','-i','pipe:0','-vn','-map','0:a:0','-c:a','libmp3lame','-b:a','192k','-f','mp3','pipe:1'],{stdio:['pipe','pipe','pipe']});
+    const chunks=[];let errors='',settled=false;const timer=setTimeout(()=>child.kill('SIGKILL'),60_000);
+    child.stdout.on('data',chunk=>{chunks.push(chunk);if(chunks.reduce((sum,item)=>sum+item.length,0)>20*1024*1024) child.kill('SIGKILL');});
+    child.stderr.on('data',chunk=>{errors=(errors+chunk).slice(-4000);});
+    child.on('error',error=>{if(settled)return;settled=true;clearTimeout(timer);reject(error);});
+    child.on('close',code=>{if(settled)return;settled=true;clearTimeout(timer);if(code===0)resolvePromise(Buffer.concat(chunks));else reject(new Error(errors || 'MP3 conversion failed.'))});
+    child.stdin.on('error',()=>{});child.stdin.end(wav);
+  });
+}
+
 export async function convertYoutube(id, directory, update) {
   const binary = process.env.YT_DLP_PATH || resolve('.tools/yt-dlp', process.platform === 'win32' ? 'Scripts/yt-dlp.exe' : 'bin/yt-dlp');
   const common = ['--ignore-config', '--no-plugin-dirs', '--no-playlist', '--no-warnings', '--socket-timeout', '20', '--retries', '1', '--js-runtimes', `node:${process.execPath}`];
