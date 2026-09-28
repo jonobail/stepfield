@@ -69,11 +69,9 @@ Patterns, row slice assignments, tempo, volume, sound settings, and modulation a
 
 YouTube audio is cached on this computer in `.cache/audio` so it can be reloaded later. The cache is limited to 200 MB, entries expire after 30 days, and imports prune expired or older files. Local files remain in memory and are not cached. Stepfield currently loads one source recording at a time.
 
-## Limits and hosting
+## Audio notes
 
 YouTube import and MP3 conversion use the local Node media service. That service downloads audio with [yt-dlp](https://github.com/yt-dlp/yt-dlp) and converts it with FFmpeg; YouTube imports are limited to 15 minutes and files larger than 150 MB are rejected. Decoded audio may use much more memory than the original file. YouTube availability, browser codec support, and background-tab scheduling can also affect playback.
-
-GitHub Pages can host the Angular files, but it cannot run this Node media service. A Pages-only deployment would not support YouTube import, cached-track management, or MP3 conversion. Run Stepfield locally for the full workflow; a live deployment needs a separately hosted media backend.
 
 Use recordings you have permission to sample. The app does not use YouTube cookies or account credentials.
 
