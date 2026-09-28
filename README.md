@@ -22,6 +22,10 @@ Stepfield divides a recording into 256 slices and maps them to a monome-style gr
 - Save patterns and sound settings in the browser, or export and import them as JSON.
 - Render the current pattern as a stereo WAV or MP3 loop.
 
+## Add Stepfield to a phone
+
+Stepfield can be installed from its secure HTTPS address. On iPhone, open it in Safari, tap **Share**, then **Add to Home Screen**. On Android, open it in Chrome and choose **Install app** or **Add to Home screen**. The home screen icon uses Stepfield’s colored grid mark. The app shell is cached for offline use; YouTube imports still need an internet connection.
+
 ## Run locally
 
 **Requirements:** Node.js 24.15 or newer. Python 3.10+ with `venv` support is needed only to install the YouTube downloader.

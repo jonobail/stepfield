@@ -58,7 +58,7 @@ export function createApp(library = new MediaLibrary()) {
       const path = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
       const file = resolve(root,`.${path}`); if (!file.startsWith(root + '/')) return json(res,404,{error:'Not found.'});
       const info = await stat(file); if (!info.isFile()) return json(res,404,{error:'Not found.'});
-      const type = {'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.ico':'image/x-icon'}[extname(file)] || 'application/octet-stream';
+      const type = {'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.ico':'image/x-icon','.png':'image/png','.webmanifest':'application/manifest+json'}[extname(file)] || 'application/octet-stream';
       res.writeHead(200,{'Content-Type':type,'Content-Length':info.size,'X-Content-Type-Options':'nosniff'});
       if (req.method === 'HEAD') return res.end(); const stream = createReadStream(file); stream.on('error',() => res.destroy()); stream.pipe(res);
     } catch (error) { if (!res.headersSent) json(res,error.code === 'ENOENT' ? 404 : 500,{error:'Request failed. Check that the app is built and try again.'}); else res.destroy(); }

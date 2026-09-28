@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#151719"/>
+  <g shape-rendering="geometricPrecision">
+    <rect x="82" y="82" width="72" height="72" rx="14" fill="#C6616C"/>
+    <rect x="174" y="82" width="72" height="72" rx="14" fill="#E3A553"/>
+    <rect x="266" y="82" width="72" height="72" rx="14" fill="#EBCB82"/>
+    <rect x="358" y="82" width="72" height="72" rx="14" fill="#A7C18F"/>
+    <rect x="82" y="174" width="72" height="72" rx="14" fill="#83C2D1"/>
+    <rect x="174" y="174" width="72" height="72" rx="14" fill="#84A6C8"/>
+    <rect x="266" y="174" width="72" height="72" rx="14" fill="#B28EAA"/>
+    <rect x="358" y="174" width="72" height="72" rx="14" fill="#DDE3ED"/>
+    <rect x="82" y="266" width="72" height="72" rx="14" fill="#C6616C"/>
+    <rect x="174" y="266" width="72" height="72" rx="14" fill="#E3A553"/>
+    <rect x="266" y="266" width="72" height="72" rx="14" fill="#EBCB82"/>
+    <rect x="358" y="266" width="72" height="72" rx="14" fill="#A7C18F"/>
+    <rect x="82" y="358" width="72" height="72" rx="14" fill="#83C2D1"/>
+    <rect x="174" y="358" width="72" height="72" rx="14" fill="#84A6C8"/>
+    <rect x="266" y="358" width="72" height="72" rx="14" fill="#B28EAA"/>
+    <rect x="358" y="358" width="72" height="72" rx="14" fill="#DDE3ED"/>
+  </g>
+</svg>

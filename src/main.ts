@@ -1,4 +1,4 @@
-import { Component, signal, computed, OnDestroy, AfterViewInit, ViewChild, ViewChildren, QueryList, ElementRef } from '@angular/core';
+import { Component, signal, computed, isDevMode, OnDestroy, AfterViewInit, ViewChild, ViewChildren, QueryList, ElementRef } from '@angular/core';
 import { DEFAULT_MODULATION, MODULATION_RATES, modulateSound, restoreModulation, type Modulation } from './modulation';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { sliceBounds, quantizeAudioSlices, columnPads, repeatCellAcrossRow, moveStep, assignRowSample } from './sequencer';
@@ -543,4 +543,9 @@ class App implements OnDestroy, AfterViewInit {
   async importSession(event:Event) { const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = ''; if (!file) return; try { if (file.size > 100_000) throw new Error(); const data = JSON.parse(await file.text()); this.restore(data); this.stop(); this.persist(); this.message.set('Pattern imported. Audio is not included; load the matching recording.'); } catch { this.message.set('Invalid pattern file. Choose an exported audio-grid pattern.'); } }
   ngOnDestroy() { this.importController?.abort(); this.stop(); if (this.context) { this.context.onstatechange = null; void this.context.close(); } }
 }
-bootstrapApplication(App).catch(console.error);
+bootstrapApplication(App).then(() => {
+  if (!isDevMode() && 'serviceWorker' in navigator) {
+    const worker = new URL('service-worker.js', document.baseURI);
+    void navigator.serviceWorker.register(worker).catch(error => console.error('Stepfield offline support could not be started.', error));
+  }
+}).catch(console.error);
