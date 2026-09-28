@@ -28,7 +28,7 @@ The sidebar shows one compact panel at a time: **Source** for imports, **Sound**
 
 Audio uses clock-scheduled Web Audio sources, short edge fades, headroom, and a dynamics compressor. The full-height playhead marker follows the audio clock. Pattern edits reconcile already queued notes that have not started, so enabling/disabling a square just before a column arrives changes that event. Tempo changes affect unscheduled steps; up to 100 ms may already be scheduled. Background-tab throttling can interrupt scheduling; missed steps are skipped rather than replayed in a burst.
 
-Pattern, sound controls, and tempo/volume settings save locally. JSON import/export contains the pattern, settings, and source filename, **not audio**. After reload, use Reload saved YouTube audio to fetch the cached recording (or download it again if evicted). Local recordings need to be reimported. Legacy YouTube cue sessions are not compatible and their storage is left intact.
+Pattern, sound controls, and tempo/volume settings save locally. JSON import/export contains the pattern, settings, and source filename, **not audio**. After reload, use Reload saved YouTube audio to fetch the cached recording (or download it again if evicted). Local recordings need to be reimported. Use **Manage audio storage** in Source to view and remove cached YouTube tracks; local imports stay in memory only. Legacy YouTube cue sessions are not compatible and their storage is left intact.
 
 ## Media limitations
 

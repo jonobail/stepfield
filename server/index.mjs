@@ -32,6 +32,13 @@ export function createApp(library = new MediaLibrary()) {
       }
       const job = url.pathname.match(/^\/api\/youtube\/([\w-]{11})$/);
       if (req.method === 'GET' && job) { const state = library.jobs.get(job[1]) || await library.cached(job[1]); return json(res,state ? 200 : 404,state || {error:'Import expired. Submit the link again.'}); }
+      if (req.method === 'GET' && url.pathname === '/api/storage') return json(res,200,await library.listCached());
+      const storedAudio = url.pathname.match(/^\/api\/storage\/([\w-]{11})$/);
+      if (req.method === 'DELETE' && storedAudio) {
+        if (req.headers.origin && new URL(req.headers.origin).host !== host) return json(res,403,{error:'Use the app to remove cached audio.'});
+        const removed = await library.removeCached(storedAudio[1]);
+        return json(res,removed ? 200 : 404,removed ? {removed:true} : {error:'Cached track not found or still importing.'});
+      }
       const audio = url.pathname.match(/^\/api\/audio\/([\w-]{11})$/);
       if (req.method === 'GET' && audio) {
         const meta = await library.cached(audio[1]); if (!meta) return json(res,404,{error:'Cached audio expired. Import the link again.'});

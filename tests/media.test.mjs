@@ -47,6 +47,11 @@ test('conversion API deduplicates jobs, caches audio, serves bytes, and reports 
     });
     const lan = await viaProxy(`http://${host}`); assert.equal(lan.status,200); assert.equal(lan.data.cached,true);
     const crossOrigin = await viaProxy('https://evil.test'); assert.equal(crossOrigin.status,403);
+    const storage = await (await fetch(base+'/api/storage')).json(); assert.equal(storage.tracks.length,1); assert.equal(storage.tracks[0].title,'Fixture'); assert.equal(storage.totalBytes,10);
+    assert.equal((await fetch(base+'/api/storage/abcdefghijk',{method:'DELETE'})).status,200);
+    assert.equal((await (await fetch(base+'/api/storage')).json()).tracks.length,0);
+    assert.equal((await fetch(base+'/api/audio/abcdefghijk')).status,404);
+    assert.equal((await fetch(base+'/api/storage/invalid',{method:'DELETE'})).status,404);
     library.convert = async () => { throw new Error('private video'); };
     await post('https://youtu.be/lmnopqrstuv'); await library.pending;
     const failed = await (await fetch(base+'/api/youtube/lmnopqrstuv')).json(); assert.equal(failed.status,'error'); assert.match(failed.message,/unavailable/);

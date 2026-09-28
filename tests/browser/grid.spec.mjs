@@ -1,10 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-function wave() {
-  const rate = 8000; const frames = rate * 64; const data = Buffer.alloc(44 + frames * 2);
-  data.write('RIFF'); data.writeUInt32LE(data.length - 8,4); data.write('WAVEfmt ',8); data.writeUInt32LE(16,16); data.writeUInt16LE(1,20); data.writeUInt16LE(1,22); data.writeUInt32LE(rate,24); data.writeUInt32LE(rate*2,28); data.writeUInt16LE(2,32); data.writeUInt16LE(16,34); data.write('data',36); data.writeUInt32LE(frames*2,40);
-  for (let i=0;i<frames;i++) data.writeInt16LE(Math.round(Math.sin(i*440*2*Math.PI/rate)*2000),44+i*2); return data;
-}
+import { wave, installOutputMeter } from './audio-fixture.mjs';
 
 test('playhead sweeps, wraps, and triggers selected rows simultaneously',async ({page}) => {
   await page.addInitScript(() => {
@@ -14,7 +10,7 @@ test('playhead sweeps, wraps, and triggers selected rows simultaneously',async (
   });
   await page.goto('/');
   await page.locator('input[type=file]').first().setInputFiles({name:'tone.wav',mimeType:'audio/wav',buffer:wave()});
-  await expect(page.getByRole('status')).toContainText('256 slices ready');
+  await expect(page.getByRole('status')).toContainText('slices');
   const pads = page.locator('.pad'); await pads.nth(0).click(); await pads.nth(16).click(); await pads.nth(1).click();
   await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBe(3);
   await page.evaluate(() => { window.audioStarts = []; });
@@ -22,11 +18,27 @@ test('playhead sweeps, wraps, and triggers selected rows simultaneously',async (
   await expect(page.locator('.playhead-marker')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBeGreaterThanOrEqual(3);
   const starts = await page.evaluate(() => window.audioStarts.slice(0,3));
-  expect(starts[0].when).toBe(starts[1].when); expect(starts[0].offset).toBe(0); expect(starts[1].offset).toBe(4); expect(starts[2].offset).toBe(.25); expect(starts[2].when-starts[0].when).toBeCloseTo(.125);
+  expect(starts[0].when).toBe(starts[1].when); expect(starts[0].offset).toBe(0); expect(starts[1].offset).toBe(4); expect(starts[2].offset).toBe(0); expect(starts[2].when-starts[0].when).toBeCloseTo(.125);
   const columns = await page.evaluate(() => new Promise(resolve => { const values = []; const begin = performance.now(); const timer = setInterval(() => { const marker = document.querySelector('.playhead-marker'); if(marker) values.push(Number(marker.style.gridColumn)); if(performance.now()-begin > 2300) { clearInterval(timer); resolve(values); } },16); }));
   expect(new Set(columns).size).toBe(16); expect(columns.some((n,i) => n === 1 && columns[i-1] === 16)).toBe(true);
   await page.getByRole('button',{name:'■ Stop'}).click(); await expect(page.locator('.playhead-marker')).toHaveCount(0); await expect(page.locator('.pad.active')).toHaveCount(0);
   await page.screenshot({path:'test-results/grid.png',fullPage:true});
+});
+
+test('a first pointer tap enables a step once instead of toggling it back off',async ({page}) => {
+  await page.goto('/'); const pad = page.locator('.pad').first();
+  await expect(pad).toHaveAttribute('aria-pressed','false'); await pad.click();
+  await expect(pad).toHaveAttribute('aria-pressed','true');
+});
+
+test('speaker test and loaded sample both produce signal at the master output',async ({page}) => {
+  await installOutputMeter(page); await page.goto('/');
+  await page.locator('input[type=file]').first().setInputFiles({name:'tone.wav',mimeType:'audio/wav',buffer:wave()});
+  await expect(page.getByRole('status')).toContainText('slices'); await page.getByRole('button',{name:'Sound',exact:true}).click();
+  await page.getByRole('button',{name:'Test speaker output'}).click();
+  await expect.poll(() => page.evaluate(() => window.outputPeak())).toBeGreaterThan(.1);
+  await page.getByRole('button',{name:'▶ Preview global sound',exact:true}).click();
+  await expect.poll(() => page.evaluate(() => window.outputPeak())).toBeGreaterThan(.002);
 });
 
 test('YouTube import polls conversion, decodes the response, and reloads saved audio',async ({page}) => {
@@ -35,7 +47,7 @@ test('YouTube import polls conversion, decodes the response, and reloads saved a
   await page.route('**/api/youtube/abcdefghijk',route => { polls++; return route.fulfill({json:{id:'abcdefghijk',status:'ready',title:'YouTube fixture',bytes:24000}}); });
   await page.route('**/api/audio/abcdefghijk',route => route.fulfill({contentType:'audio/wav',body:wave()}));
   await page.goto('/'); await page.getByRole('textbox',{name:'YouTube link'}).fill('https://youtu.be/abcdefghijk'); await page.getByRole('button',{name:'Import YouTube audio',exact:true}).click();
-  await expect(page.getByRole('status')).toContainText('256 slices ready'); expect(polls).toBe(1); await expect(page.locator('.source-name')).toHaveText('YouTube fixture'); await expect(page.locator('video,iframe')).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('slices'); expect(polls).toBe(1); await expect(page.locator('.source-name')).toHaveText('YouTube fixture'); await expect(page.locator('video,iframe')).toHaveCount(0);
   await page.reload(); await expect(page.getByRole('status')).toContainText('Cached audio ready. Press Space or Play.');
   await expect(page.getByRole('button',{name:'▶ Play',exact:true})).toBeEnabled();
 });
@@ -48,7 +60,7 @@ test('global and per-pad shaping alter real audio triggers and survive reload',a
   });
   await page.goto('/');
   await page.locator('input[type=file]').first().setInputFiles({name:'tone.wav',mimeType:'audio/wav',buffer:wave()});
-  await expect(page.getByRole('status')).toContainText('256 slices ready');
+  await expect(page.getByRole('status')).toContainText('slices');
   const change = async (label,value) => { const input = page.getByRole('spinbutton',{name:label+' value',exact:true}); await input.fill(String(value)); await input.press('Tab'); };
   await change('Length',50);
   await page.getByRole('button',{name:'Edit sound',exact:true}).click();
@@ -88,7 +100,7 @@ test('Space toggles transport without toggling the focused pad or interrupting t
   await expect(page).toHaveTitle('Stepfield');
   await page.keyboard.press('Space'); await expect(page.locator('.playhead-marker')).toHaveCount(0);
   await page.locator('input[type=file]').first().setInputFiles({name:'tone.wav',mimeType:'audio/wav',buffer:wave()});
-  await expect(page.getByRole('status')).toContainText('256 slices ready');
+  await expect(page.getByRole('status')).toContainText('slices');
   const pad = page.locator('.pad').first(); await pad.click();
   await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBe(1);
   await page.keyboard.press('Space'); await expect(page.locator('.playhead-marker')).toBeVisible();
@@ -113,22 +125,55 @@ test('selecting a step auditions its slice while stopped; running selection wait
     AudioBufferSourceNode.prototype.start = function(when,offset,duration) { window.audioStarts.push({when,offset,duration}); return start.call(this,when,offset,duration); };
   });
   await page.goto('/'); await page.locator('input[type=file]').first().setInputFiles({name:'tone.wav',mimeType:'audio/wav',buffer:wave()});
-  await expect(page.getByRole('status')).toContainText('256 slices ready');
+  await expect(page.getByRole('status')).toContainText('slices');
   await page.locator('.pad').nth(17).click();
   await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBe(1);
-  expect(await page.evaluate(() => window.audioStarts[0].offset)).toBe(4.25);
+  expect(await page.evaluate(() => window.audioStarts[0].offset)).toBe(4);
   await expect(page.locator('.pad').nth(17)).toHaveAttribute('aria-pressed','true');
   await page.evaluate(() => { window.audioStarts = []; }); await page.getByRole('button',{name:'▶ Play',exact:true}).click();
   await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBe(1);
   const sequenceStart = await page.evaluate(() => window.audioStarts[0]);
-  expect(sequenceStart.offset).toBe(4.25);
+  expect(sequenceStart.offset).toBe(4);
   const selectedAt = sequenceStart.when;
   await page.locator('.pad').nth(33).click();
   await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBe(2);
   const next = await page.evaluate(() => window.audioStarts[1]);
-  expect(next.offset).toBe(8.25); expect(next.when).toBeGreaterThanOrEqual(selectedAt);
+  expect(next.offset).toBe(8); expect(next.when).toBeGreaterThanOrEqual(selectedAt);
   await expect(page.locator('.pad').nth(33)).toHaveAttribute('aria-pressed','true');
   await page.getByRole('button',{name:'■ Stop',exact:true}).click();
+});
+
+test('scrolling a row cycles its shared sound for every step in that row', async ({page}) => {
+  await page.addInitScript(() => {
+    window.audioStarts = [];
+    const start = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function(when,offset,duration) { window.audioStarts.push({when,offset,duration}); return start.call(this,when,offset,duration); };
+  });
+  await page.goto('/'); await page.locator('input[type=file]').first().setInputFiles({name:'tone.wav',mimeType:'audio/wav',buffer:wave()});
+  await expect(page.getByRole('button',{name:'▶ Play',exact:true})).toBeEnabled();
+  await page.locator('.pad').nth(0).hover(); await page.mouse.wheel(0,100);
+  await page.locator('.pad').nth(0).click(); await page.locator('.pad').nth(7).click();
+  await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBe(2);
+  expect(await page.evaluate(() => window.audioStarts.map(start => start.offset))).toEqual([.25,.25]);
+  await expect(page.locator('.pad').nth(0)).toHaveAttribute('title',/Slice 2/);
+  await expect(page.locator('.pad').nth(16)).toHaveAttribute('title',/Slice 17/);
+});
+
+test('drag painting fills and clears crossed pads while Shift-drag moves a step',async ({page}) => {
+  await page.goto('/');
+  const pads = page.locator('.pad');
+  const point = async index => { const box = await pads.nth(index).boundingBox(); return {x:box.x+box.width/2,y:box.y+box.height/2}; };
+  await page.mouse.move((await point(0)).x,(await point(0)).y); await page.mouse.down();
+  for (const index of [1,2,3]) { const p = await point(index); await page.mouse.move(p.x,p.y); }
+  await page.mouse.up();
+  for (const index of [0,1,2,3]) await expect(pads.nth(index)).toHaveAttribute('aria-pressed','true');
+  const from = await point(3), to = await point(4); await page.mouse.move(from.x,from.y); await page.keyboard.down('Shift'); await page.mouse.down(); await page.mouse.move(to.x,to.y); await page.mouse.up(); await page.keyboard.up('Shift');
+  await expect(pads.nth(3)).toHaveAttribute('aria-pressed','false'); await expect(pads.nth(4)).toHaveAttribute('aria-pressed','true');
+  const clearFrom = await point(1); await page.mouse.move(clearFrom.x,clearFrom.y); await page.mouse.down();
+  for (const index of [2,4]) { const p = await point(index); await page.mouse.move(p.x,p.y); }
+  await page.mouse.up();
+  for (const index of [1,2,3,4]) await expect(pads.nth(index)).toHaveAttribute('aria-pressed','false');
+  await expect(pads.nth(0)).toHaveAttribute('aria-pressed','true');
 });
 
 test('compact panels retain controls and the larger grid uses flat square pads', async ({page}) => {
@@ -159,7 +204,7 @@ test('step modulation changes triggered pitch, resets with Play and persists', a
     AudioBufferSourceNode.prototype.start = function(when,offset,duration) { window.audioStarts.push({when,rate:this.playbackRate.value}); return start.call(this,when,offset,duration); };
   });
   await page.goto('/'); await page.locator('input[type=file]').first().setInputFiles({name:'tone.wav',mimeType:'audio/wav',buffer:wave()});
-  await expect(page.getByRole('status')).toContainText('256 slices ready');
+  await expect(page.getByRole('status')).toContainText('slices');
   for (let index=0;index<4;index++) await page.locator('.pad').nth(index).click();
   await page.getByRole('button',{name:'Mod',exact:true}).click();
   await page.getByRole('checkbox',{name:'Enable modulation'}).check();

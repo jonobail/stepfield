@@ -65,6 +65,28 @@ export class MediaLibrary {
       return {...meta, id, bytes: info.size, audioUrl: `/api/audio/${id}`, status:'ready', message:'Audio ready'};
     } catch { return null; }
   }
+  async listCached() {
+    let names = [];
+    try { names = await readdir(this.directory); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const tracks = (await Promise.all(names.filter(name => /^[\w-]{11}\.mp3$/.test(name)).map(async name => {
+      const id = name.slice(0,11);
+      try {
+        const [info,meta] = await Promise.all([stat(join(this.directory,name)),readFile(join(this.directory,`${id}.json`),'utf8').then(JSON.parse)]);
+        if (Date.now() - info.mtimeMs > this.maxAge) return null;
+        return {id,title:String(meta.title || 'YouTube audio').slice(0,200),duration:Number.isFinite(meta.duration) ? meta.duration : null,bytes:info.size,modified:info.mtimeMs};
+      } catch { return null; }
+    }))).filter(Boolean);
+    tracks.sort((a,b) => b.modified - a.modified);
+    return {tracks,totalBytes:tracks.reduce((sum,track) => sum + track.bytes,0),maxBytes:this.maxBytes};
+  }
+  async removeCached(id) {
+    if (!/^[\w-]{11}$/.test(id)) return false;
+    if (this.jobs.get(id)?.status === 'processing') return false;
+    const file = join(this.directory,`${id}.mp3`);
+    try { await stat(file); } catch { return false; }
+    await Promise.all([rm(file,{force:true}),rm(join(this.directory,`${id}.json`),{force:true})]);
+    return true;
+  }
   async begin(url) {
     const id = youtubeId(url);
     const cached = await this.cached(id); if (cached) return {...cached,cached:true};

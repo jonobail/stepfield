@@ -1,18 +1,18 @@
 import { Component, signal, OnDestroy, AfterViewInit, ViewChildren, QueryList, ElementRef } from '@angular/core';
 import { DEFAULT_MODULATION, MODULATION_RATES, modulateSound, restoreModulation, type Modulation } from './modulation';
 import { bootstrapApplication } from '@angular/platform-browser';
-import { sliceBounds, columnPads } from './sequencer';
+import { sliceBounds, quantizeAudioSlices, type AudioSlice, columnPads, repeatCellAcrossRow, moveStep, assignRowSample } from './sequencer';
 import { DEFAULT_SOUND, SOUND_CONTROLS, effectiveSound, voiceShape, restoreSounds, type SoundSettings, type SoundKey, type PadSound } from './sampler';
 import { getRowColor, TERMINAL_ROW_COLORS } from './terminal-theme';
 
-@Component({selector:'app-root', standalone:true, host:{'(document:keydown)':'onKeydown($event)'}, template:`
-<header class="app-header"><a class="brand" href="/" aria-label="Stepfield home"><span class="brand-mark" aria-hidden="true"><i [style.background]="logoColors[0]"></i><i [style.background]="logoColors[1]"></i><i [style.background]="logoColors[2]"></i><i [style.background]="logoColors[3]"></i></span>Stepfield</a><span class="online" [class.is-playing]="running()"><i></i>{{ running() ? 'Playing' : loaded() ? 'Ready' : 'No audio loaded' }}</span></header>
+@Component({selector:'app-root', standalone:true, host:{'(document:keydown)':'onKeydown($event)','(document:pointermove)':'continuePadGesture($event)','(document:pointerup)':'endPadGesture($event)','(document:pointercancel)':'endPadGesture($event)'}, template:`
+<header class="app-header"><a class="brand" href="/" aria-label="Stepfield home"><span class="brand-mark" aria-hidden="true">@for (color of logoColors; track $index) {<i [style.background]="color"></i>}</span>Stepfield</a><span class="online" [class.is-playing]="running()"><i></i>{{ running() ? 'Playing' : loaded() ? 'Ready' : 'No audio loaded' }}</span></header>
 <main><div class="workspace"><section class="instrument" aria-label="Step sequencer">
 <div class="toolbar"><div class="switch" aria-label="Grid mode"><button [class.chosen]="mode() === 'pattern'" [attr.aria-pressed]="mode() === 'pattern'" (click)="mode.set('pattern')">Select steps</button><button [class.chosen]="mode() === 'edit'" [attr.aria-pressed]="mode() === 'edit'" (click)="editMode()">Edit sound</button></div><div class="transport"><button class="play" [disabled]="!loaded() || loading() || running()" (click)="start()" title="Play · Space">{{ loading() ? 'Loading audio…' : !loaded() ? 'Load audio to play' : running() ? 'Playing' : '▶ Play' }}</button><button class="stop" (click)="stop()" title="Stop · Space">■ Stop</button></div></div>
 <div class="transport-settings"><label class="tempo">BPM<input aria-label="Tempo · BPM" type="number" min="30" max="300" [value]="bpm()" (change)="setTempo($event)"></label><label class="master-volume">Volume<input aria-label="Volume · %" type="range" min="0" max="100" [value]="volume()" (input)="setVolume($event)"><span>{{ volume() }}%</span></label><span class="shortcut"><kbd>space</kbd> play / stop</span></div>
 <div class="grid-area"><div class="step-ruler" aria-hidden="true">@for (step of steps; track step) {<span [class.current]="column() === step">{{ step + 1 }}</span>}</div>
-<div class="grid" aria-label="256 audio slices, 16 rows and 16 time steps"><div class="playhead-track" aria-hidden="true">@if (column() >= 0) {<span class="playhead-marker" [style.grid-column]="column() + 1"></span>}</div>@for (enabled of pattern(); track $index) {<button #padButton class="pad" [class.assigned]="enabled" [class.selected]="selected() === $index" [style.--row-color]="rowColors[$index]" [attr.aria-pressed]="enabled" [attr.aria-label]="padLabel($index)" [title]="padLabel($index)" (click)="press($index)"></button>}</div></div>
-<div class="grid-footer"><span>{{ enabledCount() }} active <span class="separator">/</span> 256 pads</span><span>{{ mode() === 'pattern' ? (running() ? 'Tap to change steps' : 'Tap to toggle + preview') : 'Select a pad to edit' }}</span><span class="step-count">{{ column() >= 0 ? (column() + 1).toString().padStart(2, '0') : '—' }} / 16</span></div>
+<div class="grid" aria-label="256 audio slices, 16 rows and 16 time steps"><div class="playhead-track" aria-hidden="true">@if (column() >= 0) {<span class="playhead-marker" [style.grid-column]="column() + 1"></span>}</div>@for (enabled of pattern(); track $index) {<button #padButton class="pad" [class.assigned]="enabled" [class.selected]="selected() === $index" [class.dragging]="dragSource() === $index" [class.drop-target]="canDropOn($index)" [style.--row-color]="rowColors[$index]" [attr.data-pad-index]="$index" [attr.aria-pressed]="enabled" [attr.aria-label]="padLabel($index)" [title]="padLabel($index)" (pointerdown)="beginPadGesture($event,$index)" (wheel)="scrollRowSound($event,$index)" (click)="press($index,$event)"></button>}</div></div>
+<div class="grid-footer"><span>{{ enabledCount() }} active <span class="separator">/</span> 256 pads</span><span>{{ mode() === 'pattern' ? (running() ? 'Tap to change steps' : 'Tap to toggle + preview') + ' · Scroll a row to change its sound' : 'Select a pad to edit' }}</span><span class="step-count">{{ column() >= 0 ? (column() + 1).toString().padStart(2, '0') : '—' }} / 16</span></div>
 </section>
 <aside class="inspector" aria-label="Instrument controls"><div class="source-summary"><span class="source-icon" aria-hidden="true">♫</span><div><p class="source-name" [title]="fileName()">{{ fileName() || 'Load a recording' }}</p><span class="source-meta">{{ loaded() ? duration().toFixed(1) + ' s · 256 slices' : 'YouTube or local file' }}</span></div><button class="source-change" aria-label="Change source" title="Change source" (click)="panel.set('source')">↗</button></div>
 <nav class="panel-tabs" aria-label="Control panels">@for (tab of panels; track tab.id) {<button [class.chosen]="panel() === tab.id" [attr.aria-pressed]="panel() === tab.id" [attr.aria-controls]="'panel-' + tab.id" (click)="panel.set(tab.id)">{{ tab.label }}</button>}</nav>
@@ -20,10 +20,11 @@ import { getRowColor, TERMINAL_ROW_COLORS } from './terminal-theme';
 <section id="panel-source" [hidden]="panel() !== 'source'" aria-label="Source controls">
 <form class="youtube-import" (submit)="$event.preventDefault(); importYoutube(youtube.value)"><label>YouTube link<input #youtube type="url" required placeholder="Paste a video link…" [disabled]="loading()"></label><button class="primary" type="submit" [disabled]="loading()">{{ loading() ? 'Importing…' : 'Import YouTube audio' }}</button></form><p class="fine">Up to 15 minutes · audio cached locally</p>
 <div class="divider"><span>or</span></div><label class="file-picker">Choose audio or video<input aria-label="Import local audio or video" type="file" accept="audio/*,video/*,.wav,.mp3,.m4a,.mp4,.webm,.ogg,.flac" [disabled]="loading()" (change)="loadFile($event)"></label><button class="connect" [hidden]="!sourceId() || loaded()" [disabled]="loading()" (click)="reloadAudio()">Reload saved YouTube audio</button>
+<section class="storage-manager" aria-label="Audio storage"><button class="connect" (click)="toggleStorage()">{{ storageOpen() ? 'Hide audio storage' : 'Manage audio storage' }}</button>@if (storageOpen()) {<div class="storage-content"><p class="fine">YouTube audio is cached on this device. Local files stay in memory and are not saved.</p>@if (loaded() && !sourceId()) {<div class="storage-track"><span>{{ fileName() }} · current memory</span><button class="inherit" (click)="clearAudio()">Unload</button></div>}<div class="storage-summary"><span>{{ cachedTracks().length }} cached tracks</span><span>{{ formatBytes(storageBytes()) }}</span><button class="inherit" [disabled]="storageLoading()" (click)="refreshStorage()">{{ storageLoading() ? 'Refreshing…' : 'Refresh' }}</button></div>@for (track of cachedTracks(); track track.id) {<div class="storage-track"><span class="storage-title" [title]="track.title">{{ track.title }}<small>{{ track.duration ? (track.duration / 60).toFixed(1) + ' min · ' : '' }}{{ formatBytes(track.bytes) }}</small></span><button class="inherit danger" [disabled]="loading()" [attr.aria-label]="'Remove ' + track.title" (click)="removeCachedTrack(track.id)">Remove</button></div>}@if (!cachedTracks().length && !storageLoading()) {<p class="fine">No cached YouTube tracks.</p>}</div>}</section>
 </section>
 <section id="panel-sound" class="sound-panel" [hidden]="panel() !== 'sound'" aria-label="Sound controls">
 <div class="switch sound-scope"><button [class.chosen]="soundScope() === 'global'" (click)="soundScope.set('global')">All pads</button><button [class.chosen]="soundScope() === 'pad'" (click)="soundScope.set('pad')">Selected pad</button></div>
-<div class="sound-heading"><span>{{ soundScope() === 'global' ? 'Global defaults' : 'Slice ' + (selected() + 1).toString().padStart(3, '0') }}</span><span class="source-meta">{{ soundScope() === 'pad' ? 'Per-pad overrides' : 'Inherited by pads' }}</span></div>
+<div class="sound-heading"><span>{{ soundScope() === 'global' ? 'Global defaults' : 'Slice ' + (rowSamples()[selectedRow()] + 1).toString().padStart(3, '0') }}</span><span class="source-meta">{{ soundScope() === 'pad' ? 'Per-pad overrides' : 'Inherited by pads' }}</span></div>
 @for (control of soundControls.slice(0, 1); track control.key) {
 <div class="sound-control"><div class="control-heading"><label [for]="'sound-' + control.key">{{ control.label }} <span class="dim">{{ control.unit }}</span></label><input [id]="'sound-' + control.key" [attr.aria-label]="control.label + ' value'" type="number" [min]="control.min" [max]="control.max" [step]="control.step" [value]="editorSound()[control.key]" (change)="setSound(control.key, $event)"></div><input type="range" [attr.aria-label]="control.label" [min]="control.min" [max]="control.max" [step]="control.step" [value]="editorSound()[control.key]" (input)="setSound(control.key, $event)">
 @if (soundScope() === 'pad') {<button class="inherit" [disabled]="!hasOverride(control.key)" (click)="inheritSound(control.key)">{{ hasOverride(control.key) ? '↩ Use global length' : 'Following global length' }}</button>}</div>}
@@ -33,7 +34,7 @@ import { getRowColor, TERMINAL_ROW_COLORS } from './terminal-theme';
 <div class="sound-control"><div class="control-heading"><label [for]="'sound-' + control.key">{{ control.label }} <span class="dim">{{ control.unit }}</span></label><input [id]="'sound-' + control.key" [attr.aria-label]="control.label + ' value'" type="number" [min]="control.min" [max]="control.max" [step]="control.step" [value]="editorSound()[control.key]" (change)="setSound(control.key, $event)"></div><input type="range" [attr.aria-label]="control.label" [min]="control.min" [max]="control.max" [step]="control.step" [value]="editorSound()[control.key]" (input)="setSound(control.key, $event)">
 @if (soundScope() === 'pad') {<button class="inherit" [disabled]="!hasOverride(control.key)" (click)="inheritSound(control.key)">{{ hasOverride(control.key) ? '↩ Use global ' + control.label.toLowerCase() : 'Following global ' + control.label.toLowerCase() }}</button>}</div>}
 <p class="fine">Pitch changes speed. Pan: −100 L / +100 R.</p></details>
-<button class="connect" [disabled]="!loaded() || loading()" (click)="audition(selected(), soundScope() === 'global')">▶ Preview {{ soundScope() === 'global' ? 'global sound' : 'slice' }}</button><button class="clear" (click)="resetSound()">{{ soundScope() === 'global' ? 'Reset global defaults' : 'Reset pad to global' }}</button>
+<button class="connect" (click)="testOutput()">Test speaker output</button><button class="connect" [disabled]="!loaded() || loading()" (click)="audition(selected(), soundScope() === 'global')">▶ Preview {{ soundScope() === 'global' ? 'global sound' : 'slice' }}</button><button class="clear" (click)="resetSound()">{{ soundScope() === 'global' ? 'Reset global defaults' : 'Reset pad to global' }}</button>
 </section>
 <section id="panel-mod" [hidden]="panel() !== 'mod'" aria-label="Modulation controls"><div class="mod-heading"><span>Step modulation</span><label class="mod-enable"><input type="checkbox" aria-label="Enable modulation" [checked]="modulation().enabled" (change)="setModulation('enabled', $event)">On</label></div>
 <p class="fine">Vary each new slice in time with the sequence.</p>
@@ -41,13 +42,14 @@ import { getRowColor, TERMINAL_ROW_COLORS } from './terminal-theme';
 <div class="mod-pair"><label>Cycle<select aria-label="Modulation cycle" [value]="modulation().steps" (change)="setModulation('steps', $event)">@for (rate of modulationRates; track rate.steps) {<option [value]="rate.steps">{{ rate.label }}</option>}</select></label><label>Shape<select aria-label="Modulation shape" [value]="modulation().waveform" (change)="setModulation('waveform', $event)"><option value="sine">Sine</option><option value="triangle">Triangle</option><option value="square">Square</option></select></label></div>
 <label class="mod-depth">Depth <span>{{ modulation().depth }}%</span><input type="range" aria-label="Modulation depth" min="0" max="100" [value]="modulation().depth" (input)="setModulation('depth', $event)"></label>
 <p class="fine">{{ modulation().target === 'pitch' ? 'Up to ±12 semitones. Pitch also changes slice length.' : modulation().target === 'pan' ? 'Adds stereo movement to each pad’s pan setting.' : 'Higher depth makes the quiet steps softer.' }} Resets on Play; sounding slices keep their values.</p></section>
-<section id="panel-session" [hidden]="panel() !== 'session'" aria-label="Session controls"><p class="section-label">Pattern</p><button class="connect" (click)="exportSession()">Export pattern ↗</button><label class="file-picker">Import pattern<input aria-label="Import pattern" type="file" accept="application/json" (change)="importSession($event)"></label><p class="fine">Patterns and sound settings save on this device. Exports do not include audio.</p><button class="clear danger" (click)="clearPattern()">Clear pattern</button></section>
+<section id="panel-session" [hidden]="panel() !== 'session'" aria-label="Session controls"><p class="section-label">Pattern</p><p class="fine">Each row repeats its mapped sound on every active step. Scroll over a row to cycle through slices.</p><p class="fine">Drag across pads to paint a run of steps. Shift-drag a lit pad to move it within its row.</p><button class="connect" (click)="exportSession()">Export pattern ↗</button><label class="file-picker">Import pattern<input aria-label="Import pattern" type="file" accept="application/json" (change)="importSession($event)"></label><p class="fine">Patterns and sound settings save on this device. Exports do not include audio.</p><button class="clear danger" (click)="clearPattern()">Clear pattern</button></section>
 </div></aside></div>
 <div class="status-bar"><p class="status" role="status">{{ message() }}</p><span>16 × 16</span></div>
 </main>`})
 class App implements OnDestroy, AfterViewInit {
-  readonly logoColors = TERMINAL_ROW_COLORS.slice(0, 4);
+  readonly logoColors = Array.from({length:16},(_,index) => TERMINAL_ROW_COLORS[index % TERMINAL_ROW_COLORS.length]);
   readonly rowColors = Array.from({length:256}, (_, index) => getRowColor(Math.floor(index / 16)));
+  readonly steps = Array.from({length:16}, (_, i) => i);
   readonly panels = [{id:'source',label:'Source'},{id:'sound',label:'Sound'},{id:'mod',label:'Mod'},{id:'session',label:'Session'}] as const;
   panel = signal<'source'|'sound'|'mod'|'session'>('source');
   readonly modulationRates = MODULATION_RATES;
@@ -62,16 +64,26 @@ class App implements OnDestroy, AfterViewInit {
   padSounds = signal<PadSound[]>(Array.from({length:256}, () => ({})));
   soundScope = signal<'global'|'pad'>('global');
   editorSound = () => this.soundScope() === 'global' ? this.globalSound() : effectiveSound(this.globalSound(),this.padSounds()[this.selected()]);
-  readonly steps = Array.from({length:16}, (_, i) => i);
   pattern = signal<boolean[]>(Array(256).fill(false)); mode = signal<'pattern'|'edit'>('pattern'); selected = signal(0);
+  rowSamples = signal<number[]>(Array.from({length:16}, (_, row) => row * 16));
+  dragSource = signal(-1);
+  private paintingPads = false;
+  private padGestureActive = false;
+  private deferPadPreview = false;
+  private pendingPadPreview = -1;
+  private paintEnabled = true;
   running = signal(false); loading = signal(false); loaded = signal(false); column = signal(-1);
+  private sliceMap:AudioSlice[] = [];
   sourceId = signal(''); fileName = signal(''); duration = signal(0); bpm = signal(120); volume = signal(70);
+  storageOpen = signal(false); storageLoading = signal(false); storageBytes = signal(0);
+  cachedTracks = signal<{id:string;title:string;duration:number|null;bytes:number;modified:number}[]>([]);
   message = signal('Import a recording, select slices, then press Play.');
   private importController?: AbortController; private context?: AudioContext; private buffer?: AudioBuffer; private master?: GainNode;
   private voices = new Set<AudioBufferSourceNode>(); private timer?: ReturnType<typeof setInterval>; private animation = 0;
   private nextTime = 0; private nextColumn = 0; private nextStep = 0; private generation = 0;
   private events: {time:number; column:number; step:number}[] = []; private lights: {index:number; start:number; end:number; source:AudioBufferSourceNode; step:number; override?:SoundSettings}[] = [];
   enabledCount = () => this.pattern().filter(Boolean).length;
+  selectedRow() { return Math.floor(this.selected() / 16); }
   constructor() {
     try { const saved = localStorage.getItem('stepfield-session-v1') ?? localStorage.getItem('grid256-audio-v1'); if (saved) this.restore(JSON.parse(saved)); }
     catch { this.message.set('Could not restore the saved pattern. Import a backup or start fresh.'); }
@@ -89,6 +101,9 @@ class App implements OnDestroy, AfterViewInit {
   }
   editMode() { this.mode.set('edit'); this.soundScope.set('pad'); this.panel.set('sound'); }
   private audio() {
+    // Request media playback on iOS rather than the default ambient/ringer session.
+    // This is optional; browsers without the Audio Session API retain normal Web Audio.
+    try { const session = (navigator as Navigator & {audioSession?: {type:string}}).audioSession; if (session && session.type !== 'playback') session.type = 'playback'; } catch {}
     if (!this.context) {
       this.context = new AudioContext(); this.master = this.context.createGain(); const limiter = this.context.createDynamicsCompressor();
       limiter.threshold.value = -6; limiter.knee.value = 6; limiter.ratio.value = 12;
@@ -101,7 +116,7 @@ class App implements OnDestroy, AfterViewInit {
     const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = ''; if (!file || this.loading()) return;
     if (file.size > 150 * 1024 * 1024) { this.message.set('Choose a file smaller than 150 MB to limit browser memory use.'); return; }
     this.stop(); this.loading.set(true); this.message.set('Decoding audio…');
-    try { const decoded = await this.audio().decodeAudioData(await file.arrayBuffer()); if (decoded.length < 256) throw new Error('Too short'); this.buffer = decoded; this.duration.set(decoded.duration); this.fileName.set(file.name); this.sourceId.set(''); this.loaded.set(true); this.panel.set('sound'); this.persist(); this.message.set('256 slices ready. Select squares and press Play.'); }
+    try { const decoded = await this.audio().decodeAudioData(await file.arrayBuffer()); if (decoded.length < 256) throw new Error('Too short'); this.buffer = decoded; this.duration.set(decoded.duration); this.fileName.set(file.name); this.sourceId.set(''); const analysis = this.mapAudio(decoded); this.loaded.set(true); this.panel.set('sound'); this.persist(); this.message.set(this.sliceMapMessage(analysis)); }
     catch { this.message.set('Could not decode this file. Try WAV, MP3, or an audio track exported from your video.'); }
     finally { this.loading.set(false); }
   }
@@ -124,14 +139,34 @@ class App implements OnDestroy, AfterViewInit {
       // Decode at the stored sample rate to avoid expanding to the device rate in memory.
       const decoded = await new OfflineAudioContext(2,1,32000).decodeAudioData(await audio.arrayBuffer());
       if (controller.signal.aborted) return;
-      this.buffer = decoded; this.duration.set(decoded.duration); this.fileName.set(job.title); this.sourceId.set(job.id); this.loaded.set(true); this.panel.set('sound'); this.persist();
-      this.message.set(`256 slices ready · ${(job.bytes / 1_000_000).toFixed(2)} MB${job.cached ? ' · loaded from cache' : ''}. Select squares and press Play.`);
+      this.buffer = decoded; this.duration.set(decoded.duration); this.fileName.set(job.title); this.sourceId.set(job.id); const analysis = this.mapAudio(decoded); this.loaded.set(true); this.panel.set('sound'); this.persist();
+      this.message.set(`${this.sliceMapMessage(analysis)} · ${(job.bytes / 1_000_000).toFixed(2)} MB${job.cached ? ' · loaded from cache' : ''}. Select squares and press Play.`);
     } catch (error) { this.message.set(error instanceof Error && error.name !== 'AbortError' ? error.message : 'Import timed out. Try again or choose a shorter video.'); }
     finally { clearTimeout(timeout); this.importController = undefined; this.loading.set(false); }
   }
   private async readJob(response:Response):Promise<{id:string;status:string;message:string;title:string;bytes:number;cached?:boolean}> {
     if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('Audio service unavailable. Restart the app with npm start.');
     const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Audio service unavailable. Restart with npm start.'); return data;
+  }
+  toggleStorage() { this.storageOpen.update(open => !open); if (!this.storageOpen()) return; void this.refreshStorage(); }
+  async refreshStorage() {
+    this.storageLoading.set(true);
+    try { const response = await fetch('/api/storage'); if (!response.ok) throw new Error('Could not read audio storage.'); const data = await response.json(); this.cachedTracks.set(data.tracks); this.storageBytes.set(data.totalBytes); }
+    catch (error) { this.message.set(error instanceof Error ? error.message : 'Could not read audio storage.'); }
+    finally { this.storageLoading.set(false); }
+  }
+  formatBytes(bytes:number) { return bytes < 1_000_000 ? `${(bytes / 1000).toFixed(0)} KB` : `${(bytes / 1_000_000).toFixed(2)} MB`; }
+  async removeCachedTrack(id:string) {
+    try {
+      const response = await fetch(`/api/storage/${id}`,{method:'DELETE'}); const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not remove cached audio.');
+      if (this.sourceId() === id) this.clearAudio();
+      await this.refreshStorage(); this.message.set('Cached track removed from this device.');
+    } catch (error) { this.message.set(error instanceof Error ? error.message : 'Could not remove cached audio.'); }
+  }
+  clearAudio() {
+    this.stop(); this.buffer = undefined; this.sliceMap = []; this.loaded.set(false); this.sourceId.set(''); this.fileName.set(''); this.duration.set(0); this.persist();
+    this.message.set('Audio unloaded from memory.');
   }
   private async loadSavedAudio(id:string) {
     if (this.loading() || this.loaded()) return;
@@ -141,16 +176,83 @@ class App implements OnDestroy, AfterViewInit {
       if (!audio.ok) throw new Error('Saved audio expired. Open Source to import the link again.');
       const decoded = await new OfflineAudioContext(2,1,32000).decodeAudioData(await audio.arrayBuffer());
       if (this.sourceId() !== id) return;
-      this.buffer = decoded; this.duration.set(decoded.duration); this.loaded.set(true); this.panel.set('sound');
+      this.buffer = decoded; this.duration.set(decoded.duration); this.mapAudio(decoded); this.loaded.set(true); this.panel.set('sound');
       this.message.set('Cached audio ready. Press Space or Play.');
     } catch (error) {
       if (this.sourceId() === id) { this.panel.set('source'); this.message.set(error instanceof Error ? error.message : 'Could not restore cached audio. Open Source to import it again.'); }
     } finally { this.loading.set(false); }
   }
   reloadAudio() { if (this.sourceId()) void this.importYoutube('https://www.youtube.com/watch?v=' + this.sourceId()); }
-  padLabel(index:number) { return `Slice ${index + 1}, row ${Math.floor(index / 16) + 1}, step ${index % 16 + 1}, ${this.pattern()[index] ? 'enabled' : 'disabled'}`; }
-  sliceTime() { if (!this.buffer) return 'Import audio to preview'; const b = sliceBounds(this.buffer.length, this.buffer.sampleRate, this.selected()); return `${b.offset.toFixed(3)} – ${(b.offset + b.duration).toFixed(3)} s`; }
-  press(index:number) {
+  private mapAudio(buffer:AudioBuffer) {
+    const channels = Array.from({length:buffer.numberOfChannels},(_,channel) => buffer.getChannelData(channel));
+    const analysis = quantizeAudioSlices(channels,buffer.sampleRate,this.bpm());
+    this.sliceMap = analysis.slices;
+    if (analysis.confidence > .015) this.bpm.set(analysis.bpm);
+    return analysis;
+  }
+  private sliceMapMessage(analysis:ReturnType<typeof quantizeAudioSlices>) {
+    if (!analysis.quantized) return analysis.confidence > .015 ? `Beat grid detected at ${analysis.bpm} BPM; using even slices because the recording is too short for 256 distinct grid points` : `Recording is too short for 256 distinct beat-grid slices; using even slices`;
+    return analysis.confidence > .015 ? `Beat grid detected at ${analysis.bpm} BPM · 256 quantized slices ready` : `No clear beat grid detected; slices aligned to ${analysis.bpm} BPM`;
+  }
+  private audioSlice(index:number) {
+    if (!this.buffer) return {offset:0,duration:0};
+    const safeIndex = Number.isInteger(index) ? Math.max(0,Math.min(255,index)) : 0;
+    const fallback = sliceBounds(this.buffer.length,this.buffer.sampleRate,safeIndex);
+    const slice = this.sliceMap[safeIndex];
+    if (!slice || !Number.isFinite(slice.offset) || !Number.isFinite(slice.duration) || slice.offset < 0 || slice.duration <= 0 || slice.offset + slice.duration > this.buffer.duration + 1 / this.buffer.sampleRate) return fallback;
+    return {offset:slice.offset,duration:Math.min(slice.duration,this.buffer.duration - slice.offset)};
+  }
+  padLabel(index:number) { const row = Math.floor(index / 16); return `Slice ${this.rowSamples()[row] + 1}, row ${row + 1}, step ${index % 16 + 1}, ${this.pattern()[index] ? 'enabled' : 'disabled'}`; }
+  sliceTime() { if (!this.buffer) return 'Import audio to preview'; const b = this.audioSlice(this.rowSamples()[Math.floor(this.selected() / 16)]); return `${b.offset.toFixed(3)} – ${(b.offset + b.duration).toFixed(3)} s`; }
+  beginPadGesture(event:PointerEvent,index:number) {
+    if (event.button !== 0) return;
+    if (this.mode() === 'edit') { event.preventDefault(); this.press(index); return; }
+    event.preventDefault(); this.padGestureActive = true;
+    this.deferPadPreview = event.pointerType !== 'mouse'; this.pendingPadPreview = -1;
+    if (event.shiftKey && this.pattern()[index]) { this.dragSource.set(index); this.paintingPads = false; return; }
+    this.dragSource.set(-1); this.paintingPads = true; this.paintEnabled = !this.pattern()[index]; this.applyPadPaint(index);
+  }
+  continuePadGesture(event:PointerEvent) {
+    if (!this.paintingPads && this.dragSource() < 0) return;
+    const element = document.elementFromPoint(event.clientX,event.clientY)?.closest<HTMLElement>('[data-pad-index]');
+    const target = Number(element?.dataset['padIndex']); if (!Number.isInteger(target) || target < 0 || target >= 256) return;
+    if (this.dragSource() >= 0) {
+      const source = this.dragSource();
+      if (!this.canDropOn(target)) return;
+      this.pattern.set(moveStep(this.pattern(),source,target)); this.selected.set(target); this.dragSource.set(-1);
+      this.reconcileQueuedPads([source,target]); this.persist(); this.message.set('Step moved.'); return;
+    }
+    if (this.paintingPads) this.applyPadPaint(target);
+  }
+  endPadGesture(event:PointerEvent) {
+    if (!this.padGestureActive) return;
+    const preview = this.pendingPadPreview;
+    this.padGestureActive = false; this.paintingPads = false; this.dragSource.set(-1);
+    this.deferPadPreview = false; this.pendingPadPreview = -1;
+    // Touch/pen pointerdown does not authorize audio. Resume directly inside pointerup,
+    // after painting, without toggling the pad a second time or queueing locked previews.
+    if (event.type === 'pointerup' && preview >= 0 && !this.running() && this.pattern()[preview]) void this.audition(preview);
+  }
+  private applyPadPaint(index:number) {
+    if (this.pattern()[index] === this.paintEnabled) return;
+    this.selected.set(index); this.pattern.update(pattern => pattern.map((enabled,pad) => pad === index ? this.paintEnabled : enabled));
+    const now = this.context?.currentTime ?? 0;
+    if (this.paintEnabled) {
+      for (const event of this.events) if (event.time > now && event.column === index % 16) this.trigger(index,event.time,undefined,event.step);
+      if (!this.running()) {
+        if (this.deferPadPreview) this.pendingPadPreview = index;
+        else void this.audition(index);
+      }
+    } else if (this.running()) {
+      for (const light of this.lights) if (light.index === index && light.start > now) light.source.stop();
+      this.lights = this.lights.filter(light => light.index !== index || light.start <= now);
+    }
+    this.nextPaintTime = 0; this.persist();
+  }
+  press(index:number,event?:MouseEvent) {
+    // Pointer input was already handled on pointerdown for responsive drag painting.
+    // Keep click activation for keyboard and assistive input, which has detail === 0.
+    if (event && event.detail > 0) return;
     this.selected.set(index);
     if (this.mode() === 'edit') { this.soundScope.set('pad'); this.panel.set('sound'); return; }
     this.pattern.update(p => p.map((v,i) => i === index ? !v : v));
@@ -164,13 +266,34 @@ class App implements OnDestroy, AfterViewInit {
     this.nextPaintTime = 0; this.persist();
     if (!this.running() && this.pattern()[index]) void this.audition(index);
   }
+  canDropOn(target:number) { const source = this.dragSource(); return source >= 0 && source !== target && !this.pattern()[target] && Math.floor(source / 16) === Math.floor(target / 16); }
+  scrollRowSound(event:WheelEvent,index:number) {
+    if (event.deltaY === 0) return;
+    event.preventDefault();
+    const row = Math.floor(index / 16), current = this.rowSamples()[row];
+    const sample = (current + (event.deltaY > 0 ? 1 : 255)) % 256;
+    this.rowSamples.set(assignRowSample(this.rowSamples(),row,sample));
+    this.reconcileQueuedPads(Array.from({length:16},(_,column) => row * 16 + column));
+    this.persist(); this.message.set(`Row ${row + 1} · slice ${sample + 1}.`);
+  }
   async audition(index:number, globalPreview = false) {
     if (!this.buffer || this.loading()) { this.message.set('Import a recording first.'); return; } const generation = this.generation;
-    try { const ctx = this.audio(); await ctx.resume(); if (generation !== this.generation) return; this.trigger(index, ctx.currentTime + .005, globalPreview ? this.globalSound() : undefined); this.animate(); } catch { this.message.set('Audio could not start. Try previewing again.'); }
+    if (this.volume() === 0) { this.message.set('Master volume is at 0%. Raise the Volume control to hear audio.'); return; }
+    try { const ctx = this.audio(); await ctx.resume(); if (generation !== this.generation) return; if (ctx.state !== 'running') throw new Error('Audio output is suspended.'); this.trigger(index, ctx.currentTime + .005, globalPreview ? this.globalSound() : undefined); this.animate(); } catch (error) { this.message.set(error instanceof Error ? error.message : 'Audio could not start. Try previewing again.'); }
+  }
+  async testOutput() {
+    if (this.volume() === 0) { this.message.set('Master volume is at 0%. Raise the Volume control to hear audio.'); return; }
+    try {
+      const ctx = this.audio(); await ctx.resume(); if (ctx.state !== 'running' || !this.master) throw new Error('Browser audio output is suspended.');
+      const oscillator = ctx.createOscillator(), envelope = ctx.createGain(), now = ctx.currentTime;
+      oscillator.type = 'sine'; oscillator.frequency.value = 440; envelope.gain.setValueAtTime(0,now); envelope.gain.linearRampToValueAtTime(.65,now+.02); envelope.gain.setValueAtTime(.65,now+.28); envelope.gain.linearRampToValueAtTime(0,now+.4);
+      oscillator.connect(envelope); envelope.connect(this.master); oscillator.onended = () => { oscillator.disconnect(); envelope.disconnect(); };
+      oscillator.start(now); oscillator.stop(now+.4); this.message.set('Speaker test tone sent.');
+    } catch (error) { this.message.set(error instanceof Error ? error.message : 'Browser audio output could not start.'); }
   }
   private trigger(index:number, time:number, override?:SoundSettings, step = 0) {
     if (!this.buffer || !this.context || !this.master) return;
-    const bounds = sliceBounds(this.buffer.length, this.buffer.sampleRate, index);
+    const bounds = this.audioSlice(this.rowSamples()[Math.floor(index / 16)]);
     const settings = override ?? effectiveSound(this.globalSound(),this.padSounds()[index]);
     const shape = voiceShape(bounds.duration,modulateSound(settings,this.modulation(),step));
     const source = this.context.createBufferSource(); const envelope = this.context.createGain(); const pan = this.context.createStereoPanner();
@@ -179,13 +302,14 @@ class App implements OnDestroy, AfterViewInit {
     envelope.gain.setValueAtTime(0,time); envelope.gain.linearRampToValueAtTime(shape.gain,time + shape.attack);
     envelope.gain.setValueAtTime(shape.gain,Math.max(time + shape.attack,time + shape.duration - shape.release)); envelope.gain.linearRampToValueAtTime(0,time + shape.duration);
     this.voices.add(source); source.onended = () => { this.voices.delete(source); source.disconnect(); envelope.disconnect(); pan.disconnect(); };
-    source.start(time,bounds.offset,shape.sourceDuration);
+    try { source.start(time,bounds.offset,shape.sourceDuration); }
+    catch { this.voices.delete(source); source.disconnect(); envelope.disconnect(); pan.disconnect(); this.message.set('Audio playback failed. Reload the recording and try again.'); return; }
     this.lights.push({index,start:time,end:time + shape.duration,source,step,override}); this.nextPaintTime = 0;
   }
   hasOverride(key:SoundKey) { return Object.hasOwn(this.padSounds()[this.selected()],key); }
   shapedTime() {
     if (!this.buffer) return 'Import audio to see the playback length';
-    const bounds = sliceBounds(this.buffer.length,this.buffer.sampleRate,this.selected());
+    const bounds = this.audioSlice(this.rowSamples()[Math.floor(this.selected() / 16)]);
     const shape = voiceShape(bounds.duration,this.editorSound());
     return `${(shape.duration * 1000).toFixed(1)} ms playback · ${(bounds.duration * 1000).toFixed(1)} ms full slice`;
   }
@@ -212,7 +336,7 @@ class App implements OnDestroy, AfterViewInit {
   }
   lengthPreset(preset:'blip'|'full') {
     if (preset === 'full') this.updateSound('length',100);
-    else if (this.buffer) { const bounds = sliceBounds(this.buffer.length,this.buffer.sampleRate,this.selected()); this.updateSound('length',Math.round(10 / (bounds.duration * 1000) * 1000) / 10); }
+    else if (this.buffer) { const bounds = this.audioSlice(this.rowSamples()[Math.floor(this.selected() / 16)]); this.updateSound('length',Math.round(10 / (bounds.duration * 1000) * 1000) / 10); }
   }
   private refreshQueuedSound(all = false) {
     const now = this.context?.currentTime ?? 0;
@@ -224,9 +348,11 @@ class App implements OnDestroy, AfterViewInit {
     this.nextPaintTime = 0;
   }
   async start() {
-    if (!this.buffer || this.loading() || this.running()) return; const generation = this.generation;
-    try { const ctx = this.audio(); await ctx.resume(); if (generation !== this.generation || this.running()) return; this.running.set(true); this.nextColumn = 0; this.nextStep = 0; this.nextTime = ctx.currentTime + .05; this.schedule(); this.timer = setInterval(() => this.schedule(),25); this.animate(); this.message.set('Sequencing. Toggle squares to change the pattern.'); }
-    catch { this.message.set('Audio could not start. Press Play to try again.'); }
+    if (!this.buffer || this.loading() || this.running()) return;
+    if (this.volume() === 0) { this.message.set('Master volume is at 0%. Raise the Volume control to hear audio.'); return; }
+    const generation = this.generation;
+    try { const ctx = this.audio(); await ctx.resume(); if (generation !== this.generation || this.running()) return; if (ctx.state !== 'running') throw new Error('Browser audio output is suspended.'); this.running.set(true); this.nextColumn = 0; this.nextStep = 0; this.nextTime = ctx.currentTime + .05; this.schedule(); this.timer = setInterval(() => this.schedule(),25); this.animate(); this.message.set('Sequencing. Toggle squares to change the pattern.'); }
+    catch (error) { this.message.set(error instanceof Error ? error.message : 'Audio could not start. Press Play to try again.'); }
   }
   private schedule() {
     if (!this.context || !this.running()) return; const now = this.context.currentTime; const step = 60 / this.bpm() / 4;
@@ -271,8 +397,27 @@ class App implements OnDestroy, AfterViewInit {
   clearPattern() { this.stop(); this.pattern.set(Array(256).fill(false)); this.persist(); }
   setTempo(event:Event) { const input = event.target as HTMLInputElement; const n = Number(input.value); if (Number.isFinite(n)) this.bpm.set(Math.max(30,Math.min(300,n))); input.value = String(this.bpm()); this.persist(); }
   setVolume(event:Event) { const input = event.target as HTMLInputElement; const n = Number(input.value); if (Number.isFinite(n)) this.volume.set(Math.max(0,Math.min(100,n))); input.value = String(this.volume()); if (this.master && this.context) this.master.gain.setTargetAtTime(this.volume() / 100,this.context.currentTime,.01); this.persist(); }
-  private session() { return {version:1,pattern:this.pattern(),bpm:this.bpm(),volume:this.volume(),source:this.fileName(),sourceId:this.sourceId(),globalSound:this.globalSound(),padSounds:this.padSounds(),modulation:this.modulation()}; }
-  private restore(data:unknown) { const d = data as ReturnType<App['session']>; if (!d || d.version !== 1 || !Array.isArray(d.pattern) || d.pattern.length !== 256 || !d.pattern.every(v => typeof v === 'boolean') || !Number.isFinite(d.bpm) || d.bpm < 30 || d.bpm > 300 || !Number.isFinite(d.volume) || d.volume < 0 || d.volume > 100) throw new Error('Invalid pattern'); const sounds = restoreSounds(d.globalSound,d.padSounds); const modulation = restoreModulation(d.modulation); this.modulation.set(modulation); this.globalSound.set(sounds.global); this.padSounds.set(sounds.pads); if (!this.loaded()) { this.sourceId.set(typeof d.sourceId === 'string' && /^[\w-]{11}$/.test(d.sourceId) ? d.sourceId : ''); this.fileName.set(typeof d.source === 'string' ? d.source.slice(0,200) : ''); } this.pattern.set([...d.pattern]); this.bpm.set(d.bpm); this.volume.set(d.volume); if (this.master && this.context) this.master.gain.setTargetAtTime(d.volume / 100,this.context.currentTime,.01); }
+  repeatSelectedAcrossRow() {
+    const sample = this.rowSamples()[Math.floor(this.selected() / 16)];
+    this.pattern.set(repeatCellAcrossRow(this.pattern(),this.selected()));
+    const rowStart = Math.floor(this.selected() / 16) * 16;
+    this.reconcileQueuedPads(Array.from({length:16},(_,column) => rowStart + column));
+    this.persist();
+    this.message.set(`Slice ${sample + 1} repeated across row ${Math.floor(this.selected() / 16) + 1}.`);
+  }
+  private reconcileQueuedPads(indices:number[]) {
+    if (!this.running()) return;
+    const affected = new Set(indices), now = this.context?.currentTime ?? 0;
+    const queued = this.lights.filter(light => affected.has(light.index) && light.start > now);
+    for (const light of queued) light.source.stop();
+    const replaced = new Set(queued);
+    this.lights = this.lights.filter(light => !replaced.has(light));
+    for (const event of this.events) for (const index of affected) {
+      if (this.pattern()[index] && event.time > now && event.column === index % 16 && !this.lights.some(light => light.index === index && light.start === event.time)) this.trigger(index,event.time,undefined,event.step);
+    }
+  }
+  private session() { return {version:1,pattern:this.pattern(),rowSamples:this.rowSamples(),sampleAssignments:Array.from({length:256},(_,index) => this.rowSamples()[Math.floor(index / 16)]),bpm:this.bpm(),volume:this.volume(),source:this.fileName(),sourceId:this.sourceId(),globalSound:this.globalSound(),padSounds:this.padSounds(),modulation:this.modulation()}; }
+  private restore(data:unknown) { const d = data as ReturnType<App['session']>; if (!d || d.version !== 1 || !Array.isArray(d.pattern) || d.pattern.length !== 256 || !d.pattern.every(v => typeof v === 'boolean') || !Number.isFinite(d.bpm) || d.bpm < 30 || d.bpm > 300 || !Number.isFinite(d.volume) || d.volume < 0 || d.volume > 100) throw new Error('Invalid pattern'); const legacySamples = d.sampleAssignments === undefined ? Array.from({length:256},(_,index) => Math.floor(index / 16) * 16) : d.sampleAssignments; if (!Array.isArray(legacySamples) || legacySamples.length !== 256 || !legacySamples.every(sample => Number.isInteger(sample) && sample >= 0 && sample < 256)) throw new Error('Invalid sample assignments'); const rowSamples = d.rowSamples ?? Array.from({length:16},(_,row) => legacySamples[row * 16]); if (!Array.isArray(rowSamples) || rowSamples.length !== 16 || !rowSamples.every(sample => Number.isInteger(sample) && sample >= 0 && sample < 256)) throw new Error('Invalid row sounds'); const sounds = restoreSounds(d.globalSound,d.padSounds); const modulation = restoreModulation(d.modulation); this.modulation.set(modulation); this.globalSound.set(sounds.global); this.padSounds.set(sounds.pads); if (!this.loaded()) { this.sourceId.set(typeof d.sourceId === 'string' && /^[\w-]{11}$/.test(d.sourceId) ? d.sourceId : ''); this.fileName.set(typeof d.source === 'string' ? d.source.slice(0,200) : ''); } this.pattern.set([...d.pattern]); this.rowSamples.set([...rowSamples]); this.bpm.set(d.bpm); this.volume.set(d.volume); if (this.master && this.context) this.master.gain.setTargetAtTime(d.volume / 100,this.context.currentTime,.01); }
   private persist() { try { localStorage.setItem('stepfield-session-v1',JSON.stringify(this.session())); } catch { this.message.set('Storage unavailable. Export your pattern to keep it.'); } }
   exportSession() { const url = URL.createObjectURL(new Blob([JSON.stringify(this.session(),null,2)],{type:'application/json'})); const a = document.createElement('a'); a.href = url; a.download = 'stepfield-pattern.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000); }
   async importSession(event:Event) { const input = event.target as HTMLInputElement; const file = input.files?.[0]; input.value = ''; if (!file) return; try { if (file.size > 100_000) throw new Error(); const data = JSON.parse(await file.text()); this.restore(data); this.stop(); this.persist(); this.message.set('Pattern imported. Audio is not included; load the matching recording.'); } catch { this.message.set('Invalid pattern file. Choose an exported audio-grid pattern.'); } }
