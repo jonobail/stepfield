@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/stepfield-logo.svg" alt="Stepfield" width="188" height="40">
+  <img src="assets/stepfield-logo.svg" alt="Stepfield" width="240" height="46">
 </p>
 
 <p align="center">
