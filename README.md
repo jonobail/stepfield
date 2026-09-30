@@ -14,7 +14,7 @@ Stepfield divides a recording into 256 slices and maps them to a monome-style gr
 
 ## Features
 
-- Import audio from a YouTube link, or load an audio/video file from your device.
+- Load an audio/video file from your device, or (when self-hosted) import audio from a YouTube link.
 - Sequence 256 slices on a responsive 16 × 16 grid, with all enabled steps in a column triggering together.
 - Choose a row’s sound with the Source slice dropdown, paint steps by dragging, or move an active step within its row with **Shift + drag**.
 - Shape sounds with length, attack, release, level, pitch, and pan controls. Set global defaults or overrides shared across a row.
@@ -25,6 +25,12 @@ Stepfield divides a recording into 256 slices and maps them to a monome-style gr
 ## Add Stepfield to a phone
 
 Stepfield can be installed from its secure HTTPS address. On iPhone, open it in Safari, tap **Share**, then **Add to Home Screen**. On Android, open it in Chrome and choose **Install app** or **Add to Home screen**. The home screen icon uses Stepfield’s colored grid mark. The app shell is cached for offline use; YouTube imports still need an internet connection.
+
+## Hosted version
+
+A static build runs on GitHub Pages at [jonobail.github.io/stepfield](https://jonobail.github.io/stepfield/). It has no media service, so it supports local files and WAV export only; **YouTube import, the cached audio library, and MP3 export are available only when you run Stepfield yourself** (below).
+
+Every push to `master` runs `.github/workflows/deploy-pages.yml`, which type-checks, runs the unit tests, and publishes `npm run build:pages`. In the repository's **Settings → Pages**, set **Source** to **GitHub Actions** once. The Pages build swaps `src/environments/environment.ts` for `environment.pages.ts`, which sets `mediaService: false`.
 
 ## Run locally
 
@@ -94,12 +100,21 @@ YouTube import and MP3 conversion use the local Node media service. That service
 
 Use recordings you have permission to sample. The app does not use YouTube cookies or account credentials.
 
+## Code layout
+
+- `src/app/app.component.{ts,html}` — the app shell: grid, transport, source, sound, and modulation panels, plus live scheduling.
+- `src/app/` — `audio-graph.ts` (Web Audio voices and output chain), `loop-export.ts` (offline WAV render), `session.ts` (save/restore and validation), `media-api.ts` (client for the media service).
+- `src/waveform/` — the source editor component and its canvas renderer.
+- `src/sequencer.ts`, `slices.ts`, `sampler.ts`, `modulation.ts` — framework-free logic covered by the unit tests.
+- `server/` — the Node media service used when self-hosting.
+
 ## Development checks
 
 ```sh
 npm run check       # TypeScript check
 npm test            # Unit and media-service tests
 npm run build       # Production Angular build
+npm run build:pages # Static GitHub Pages build (no media service)
 ```
 
 Browser tests use Playwright and Chromium:

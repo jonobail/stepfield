@@ -1,0 +1,96 @@
+<section class="source-editor" aria-label="Source editor" [style.--slice-color]="color">
+  <header>
+    <h2>SOURCE EDITOR</h2>
+    <div class="source-selectors">
+      <label>Row<select aria-label="Source row" (change)="selectSourceRow($event)">
+          @for (number of rows; track number) {
+            <option [value]="number" [selected]="number === row">Row {{ pad2(number + 1) }}</option>
+          }
+        </select>
+      </label>
+      <label>Source slice<select aria-label="Source slice" [disabled]="!peaks || !state" (change)="selectSource($event)">
+          @for (number of slices; track number) {
+            <option [value]="number" [selected]="number === selected">Slice {{ pad3(number + 1) }}</option>
+          }
+        </select>
+      </label>
+    </div>
+  </header>
+
+  @if (peaks && state) {
+    <div class="waveform-surface">
+      <canvas
+        #wave
+        aria-label="Source waveform with 256 slices"
+        role="img"
+        [attr.data-selected-slice]="selected"
+        [attr.data-view-start]="viewStart"
+        [attr.data-view-end]="viewEnd"
+        (pointerdown)="down($event)"
+        (pointermove)="move($event)"
+        (pointerup)="up($event)"
+        (pointercancel)="cancel()"
+        (pointerleave)="leave()"
+        (wheel)="wheel($event)"
+      ></canvas>
+      <canvas #activity class="activity" aria-hidden="true"></canvas>
+    </div>
+
+    <div class="editor-controls">
+      <div class="button-group" aria-label="Waveform zoom">
+        <button aria-label="Zoom out waveform" (click)="zoom(0.5)">−</button>
+        <button aria-label="Fit entire waveform" (click)="fit()">Fit</button>
+        <button aria-label="Zoom in waveform" (click)="zoom(2)">+</button>
+        <button (click)="locate()" aria-label="Locate selected slice">Locate</button>
+      </div>
+      <span class="slice-range">{{ start().toFixed(5) }} – {{ end().toFixed(5) }} s</span>
+      <div class="button-group">
+        <button (click)="audition.emit(false)" aria-label="Audition shaped slice">▶ Slice</button>
+        <button (click)="audition.emit(true)" aria-label="Audition raw slice">▶ Raw</button>
+      </div>
+    </div>
+
+    @if (zoomedIn()) {
+      <label class="pan-control">Position<input
+          type="range"
+          aria-label="Waveform horizontal position"
+          min="0"
+          [max]="duration - (viewEnd - viewStart)"
+          [step]="duration / 10000"
+          [value]="viewStart"
+          (input)="panInput($event)"
+        ></label>
+    }
+
+    <div class="editor-controls">
+      <div class="button-group slice-modes" role="group" aria-label="Slice mode">
+        <span>SLICE</span>
+        @for (mode of modes; track mode.value) {
+          <button [class.chosen]="state.mode === mode.value" [attr.aria-pressed]="state.mode === mode.value" (click)="chooseMode(mode.value)">{{ mode.label }}</button>
+        }
+      </div>
+      <button (click)="reset()">Reset slices</button>
+    </div>
+
+    @if (state.mode === 'manual') {
+      <div class="boundary-controls">
+        <label>Start · s<input aria-label="Slice start time" type="number" step="0.00001" min="0" [max]="end()" [disabled]="selected === 0" [value]="start()" (change)="editTime(selected, $event)"></label>
+        <label>End · s<input aria-label="Slice end time" type="number" step="0.00001" [min]="start()" [max]="duration" [disabled]="selected === 255" [value]="end()" (change)="editTime(selected + 1, $event)"></label>
+      </div>
+    }
+
+    @if (pendingMode) {
+      <div class="reset-confirm" role="group" aria-label="Replace manual slices">
+        <span>Replace manual boundaries?</span>
+        <button (click)="confirmReset()">Replace slices</button>
+        <button (click)="pendingMode = null">Keep edits</button>
+      </div>
+    }
+
+    <p class="hint">Click to assign a slice to this row. {{ state.mode === 'manual' ? 'Drag an edge to trim; use the top markers for other boundaries.' : 'Drag to pan when zoomed.' }} Shift-drag to pan · Ctrl/⌘-wheel to zoom.</p>
+  } @else {
+    <div class="waveform-surface empty-waveform" aria-label="Waveform preview">
+      <p class="hint">Load a recording to see and edit its 256 source slices.</p>
+    </div>
+  }
+</section>

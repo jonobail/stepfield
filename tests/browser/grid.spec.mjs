@@ -247,3 +247,12 @@ test('step modulation changes triggered pitch, resets with Play and persists', a
   await expect(page.getByRole('combobox',{name:'Modulation shape'})).toHaveValue('square');
   await expect(page.getByRole('slider',{name:'Modulation depth'})).toHaveValue('100');
 });
+
+test('dropdowns built from lists show their current values on first render',async ({page}) => {
+  await page.goto('/');
+  await expect(page.getByRole('combobox',{name:'Modulation cycle'})).toHaveValue('16');
+  await page.getByRole('combobox',{name:'Source row'}).selectOption('3');
+  await expect(page.getByRole('combobox',{name:'Source row'})).toHaveValue('3');
+  await page.reload();
+  await expect(page.getByRole('combobox',{name:'Modulation cycle'})).toHaveValue('16');
+});

@@ -1,5 +1,12 @@
 export const ROW_COUNT = 16;
 export const VIEW_STEPS = 16;
+export const PAD_COUNT = ROW_COUNT * VIEW_STEPS;
+
+/** Pads are stored row-major: index = row * VIEW_STEPS + column. */
+export function rowOf(index: number) { return Math.floor(index / VIEW_STEPS); }
+export function columnOf(index: number) { return index % VIEW_STEPS; }
+export function padIndex(row: number, column: number) { return row * VIEW_STEPS + column; }
+export function rowPads(row: number) { return Array.from({length: VIEW_STEPS}, (_, column) => padIndex(row, column)); }
 
 /** Partition the whole recording without dropping or duplicating audio frames. */
 export function sliceBounds(length: number, sampleRate: number, index: number) {

@@ -23,6 +23,16 @@
               "src/styles.css"
             ],
             "outputPath": "dist/stepfield"
+          },
+          "configurations": {
+            "github-pages": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.pages.ts"
+                }
+              ]
+            }
           }
         },
         "serve": {

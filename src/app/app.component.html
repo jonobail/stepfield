@@ -1,0 +1,284 @@
+<header class="app-header">
+  <a class="brand" href="./" aria-label="Stepfield home">
+    <span class="brand-mark" aria-hidden="true">
+      @for (color of logoColors; track $index) {
+        <i [style.background]="color"></i>
+      }
+    </span>Stepfield
+  </a>
+  <span class="online" [class.is-playing]="running()"><i></i>{{ statusLabel() }}</span>
+</header>
+
+<main>
+  <div class="status-bar">
+    <p class="status" role="status">{{ message() }}</p>
+    <span>16 × 16</span>
+  </div>
+
+  <div class="workspace">
+    <!-- ───────────── Step grid ───────────── -->
+    <section class="instrument" aria-label="Step sequencer">
+      <div class="grid-area">
+        <div class="step-ruler" aria-hidden="true">
+          @for (step of steps; track step) {
+            <span [class.current]="column() === step">{{ step + 1 }}</span>
+          }
+        </div>
+
+        <div class="grid" aria-label="256 audio slices, 16 rows and 16 time steps">
+          <div class="playhead-track" aria-hidden="true">
+            @if (column() >= 0) {
+              <span class="playhead-marker" [style.grid-column]="column() + 1"></span>
+            }
+          </div>
+          @for (enabled of pattern(); track $index) {
+            <button
+              #padButton
+              class="pad"
+              [class.assigned]="enabled"
+              [class.selected]="selected() === $index"
+              [class.dragging]="dragSource() === $index"
+              [class.drop-target]="canDropOn($index)"
+              [style.--row-color]="rowColors[$index]"
+              [attr.data-pad-index]="$index"
+              [attr.aria-pressed]="enabled"
+              [attr.aria-label]="padLabel($index)"
+              [title]="padLabel($index)"
+              (pointerdown)="beginPadGesture($event, $index)"
+              (click)="press($index, $event)"
+            ></button>
+          }
+        </div>
+      </div>
+
+      <div class="grid-footer">
+        <span>{{ enabledCount() }} active <span class="separator">/</span> 256 pads</span>
+        <span>{{ gridHint() }}</span>
+        <span class="step-count">{{ column() >= 0 ? pad2(column() + 1) : '—' }} / 16</span>
+      </div>
+    </section>
+
+    <aside class="inspector" aria-label="Instrument controls">
+      <!-- ───────────── Transport ───────────── -->
+      <div class="performance-bar" aria-label="Sequencer controls">
+        <div class="performance-heading">
+          <h2>Sequencer</h2>
+          <span>16 × 16</span>
+        </div>
+
+        <div class="toolbar">
+          <label class="grid-action">Grid action<select aria-label="Grid action" [value]="mode()" (change)="setGridAction($event)">
+              <option value="pattern">Toggle steps</option>
+              <option value="edit">Select pad</option>
+            </select>
+          </label>
+          <div class="transport">
+            <button class="play" [disabled]="!loaded() || loading() || running()" (click)="start()" title="Play · Space">{{ playLabel() }}</button>
+            <button class="stop" (click)="stop()" title="Stop · Space">■ Stop</button>
+            <button class="clear-pattern" (click)="clearPattern()">Clear pattern</button>
+          </div>
+        </div>
+
+        <div class="transport-settings">
+          <label class="tempo">BPM<input aria-label="Tempo · BPM" type="number" min="30" max="300" [value]="bpm()" (change)="setTempo($event)"></label>
+          <label class="master-volume">Volume<input aria-label="Volume · %" type="range" min="0" max="100" [value]="volume()" (input)="setVolume($event)"><span>{{ volume() }}%</span></label>
+          <nav class="control-jumps" aria-label="Jump to controls">
+            <a href="#panel-source">Source</a>
+            <a href="#panel-sound">Sound</a>
+            <a href="#panel-mod">Modulation</a>
+            <a href="#panel-session">Session</a>
+          </nav>
+        </div>
+      </div>
+
+      <!-- ───────────── Source & session ───────────── -->
+      <section id="panel-source" class="source-deck" aria-label="Source controls">
+        <div class="source-deck-heading">
+          <div class="source-summary">
+            <span class="source-icon" aria-hidden="true">♫</span>
+            <div>
+              <p class="source-name" [title]="fileName()">{{ fileName() || 'Load a recording' }}</p>
+              <span class="source-meta">{{ sourceSummary() }}</span>
+            </div>
+          </div>
+
+          <section id="panel-session" class="session-actions" aria-label="Session controls">
+            <span class="section-label">Session</span>
+            <button class="connect" (click)="exportSession()">Export pattern ↗</button>
+            <label class="file-picker">Import pattern<input aria-label="Import pattern" type="file" accept="application/json" (change)="importSession($event)"></label>
+            <button class="connect loop-export" [disabled]="!canExportLoop()" (click)="downloadLoop('wav')">{{ exporting() ? 'Rendering loop…' : 'Download loop · WAV' }}</button>
+            @if (mediaService) {
+              <button class="connect loop-export" [disabled]="!canExportLoop()" (click)="downloadLoop('mp3')">Download loop · MP3</button>
+            }
+          </section>
+        </div>
+
+        @if (mediaService) {
+          <form class="youtube-import" (submit)="$event.preventDefault(); importYoutube(youtube.value)">
+            <label>YouTube link<input #youtube type="url" required placeholder="Paste a video link…" [disabled]="loading()"></label>
+            <button class="primary" type="submit" [disabled]="loading()">{{ loading() ? 'Importing…' : 'Import YouTube audio' }}</button>
+          </form>
+        }
+
+        <div class="source-extras">
+          <label class="file-picker">Choose audio or video<input
+              aria-label="Import local audio or video"
+              type="file"
+              accept="audio/*,video/*,.wav,.mp3,.m4a,.mp4,.webm,.ogg,.flac"
+              [disabled]="loading()"
+              (change)="loadFile($event)"
+            ></label>
+          @if (mediaService) {
+            <button class="connect" [hidden]="!sourceId() || loaded()" [disabled]="loading()" (click)="reloadAudio()">Reload saved YouTube audio</button>
+          }
+        </div>
+
+        @if (mediaService) {
+          <section class="storage-manager" aria-label="Audio storage">
+            <button class="connect" (click)="toggleStorage()">{{ storageOpen() ? 'Hide audio storage' : 'Manage audio storage' }}</button>
+            @if (storageOpen()) {
+              <div class="storage-content">
+                <p class="fine">YouTube audio is cached on this device. Local files stay in memory and are not saved.</p>
+                @if (loaded() && !sourceId()) {
+                  <div class="storage-track">
+                    <span>{{ fileName() }} · current memory</span>
+                    <button class="inherit" (click)="clearAudio()">Unload</button>
+                  </div>
+                }
+                <div class="storage-summary">
+                  <span>{{ cachedTracks().length }} cached tracks</span>
+                  <span>{{ formatBytes(storageBytes()) }}</span>
+                  <button class="inherit" [disabled]="storageLoading()" (click)="refreshStorage()">{{ storageLoading() ? 'Refreshing…' : 'Refresh' }}</button>
+                </div>
+                @for (track of cachedTracks(); track track.id) {
+                  <div class="storage-track">
+                    <span class="storage-title" [title]="track.title">{{ track.title }}<small>{{ track.duration ? (track.duration / 60).toFixed(1) + ' min · ' : '' }}{{ formatBytes(track.bytes) }}</small></span>
+                    <button class="inherit danger" [disabled]="loading()" [attr.aria-label]="'Remove ' + track.title" (click)="removeCachedTrack(track.id)">Remove</button>
+                  </div>
+                }
+                @if (!cachedTracks().length && !storageLoading()) {
+                  <p class="fine">No cached YouTube tracks.</p>
+                }
+              </div>
+            }
+          </section>
+        }
+      </section>
+
+      <!-- ───────────── Waveform & slice boundaries ───────────── -->
+      <source-editor
+        [peaks]="waveformPeaks()"
+        [state]="sliceState()"
+        [duration]="duration()"
+        [selected]="selectedSlice()"
+        [row]="selectedRow()"
+        [color]="rowColors[selected()]"
+        (selectRow)="selectSourceRow($event)"
+        (selectSlice)="assignWaveformSlice($event)"
+        (changeMode)="setSliceMode($event)"
+        (resetSlices)="resetSlices()"
+        (boundaryChange)="editBoundary($event)"
+        (audition)="auditionWaveform($event)"
+      ></source-editor>
+
+      <!-- ───────────── Sound shaping ───────────── -->
+      <section id="panel-sound" class="sound-panel" aria-label="Sound controls">
+        <div class="section-heading">
+          <h2>Sound</h2>
+          <span>Shape your slices</span>
+        </div>
+
+        <div class="switch sound-scope">
+          <button [class.chosen]="soundScope() === 'global'" (click)="soundScope.set('global')">All pads</button>
+          <button [class.chosen]="soundScope() === 'row'" (click)="soundScope.set('row')">Selected row</button>
+        </div>
+
+        <div class="sound-heading">
+          <span>{{ soundScope() === 'global' ? 'Global defaults' : 'Row ' + pad2(selectedRow() + 1) + ' · Slice ' + pad3(selectedSlice() + 1) }}</span>
+          <span class="source-meta">{{ soundScope() === 'row' ? 'Shared by all 16 pads' : 'Inherited by pads' }}</span>
+        </div>
+
+        <div class="sound-controls">
+          @for (control of soundControls; track control.key) {
+            <div class="sound-control">
+              <div class="control-heading">
+                <label [for]="'sound-' + control.key">{{ control.label }} <span class="dim">{{ control.unit }}</span></label>
+                <input
+                  [id]="'sound-' + control.key"
+                  [attr.aria-label]="control.label + ' value'"
+                  type="number"
+                  [min]="control.min"
+                  [max]="control.max"
+                  [step]="control.step"
+                  [value]="editorSound()[control.key]"
+                  (change)="setSound(control.key, $event)"
+                >
+              </div>
+              <input
+                type="range"
+                [attr.aria-label]="control.label"
+                [min]="control.min"
+                [max]="control.max"
+                [step]="control.step"
+                [value]="editorSound()[control.key]"
+                (input)="setSound(control.key, $event)"
+              >
+              @if (soundScope() === 'row') {
+                <button class="inherit" [disabled]="!hasOverride(control.key)" (click)="inheritSound(control.key)">{{ hasOverride(control.key) ? '↩ Use global ' : 'Following global ' }}{{ control.label.toLowerCase() }}</button>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="length-presets">
+          <button [disabled]="!loaded()" (click)="lengthPreset('blip')">Blip · 10 ms</button>
+          <button (click)="lengthPreset('full')">Full slice</button>
+        </div>
+        <p class="slice-time">{{ shapedTime() }}</p>
+
+        <div class="sound-actions">
+          <button class="connect" [disabled]="!loaded() || loading()" (click)="audition(selected(), soundScope() === 'global')">▶ Preview {{ soundScope() === 'global' ? 'global sound' : 'slice' }}</button>
+          <button class="clear" (click)="resetSound()">{{ soundScope() === 'global' ? 'Reset global defaults' : 'Reset row to global' }}</button>
+        </div>
+      </section>
+
+      <!-- ───────────── Modulation ───────────── -->
+      <section id="panel-mod" aria-label="Modulation controls">
+        <div class="mod-heading">
+          <h2>Modulation</h2>
+          <label class="mod-enable"><input type="checkbox" aria-label="Enable modulation" [checked]="modulation().enabled" (change)="setModulation('enabled', $event)">On</label>
+        </div>
+        <p class="fine">Vary each new slice in time with the sequence.</p>
+
+        <label>Target<select aria-label="Modulation target" [value]="modulation().target" (change)="setModulation('target', $event)">
+            <option value="pan">Pan · left / right</option>
+            <option value="volume">Volume · pulse</option>
+            <option value="pitch">Pitch · up / down</option>
+          </select>
+        </label>
+
+        <div class="mod-pair">
+          <label>Cycle<select aria-label="Modulation cycle" (change)="setModulation('steps', $event)">
+              @for (rate of modulationRates; track rate.steps) {
+                <option [value]="rate.steps" [selected]="rate.steps === modulation().steps">{{ rate.label }}</option>
+              }
+            </select>
+          </label>
+          <label>Shape<select aria-label="Modulation shape" [value]="modulation().waveform" (change)="setModulation('waveform', $event)">
+              <option value="sine">Sine</option>
+              <option value="triangle">Triangle</option>
+              <option value="square">Square</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="mod-depth">Depth <span>{{ modulation().depth }}%</span><input type="range" aria-label="Modulation depth" min="0" max="100" [value]="modulation().depth" (input)="setModulation('depth', $event)"></label>
+        <p class="fine">{{ modulationHint() }} Resets on Play; sounding slices keep their values.</p>
+      </section>
+
+      <button class="connect output-test" (click)="testOutput()">Test speaker output</button>
+    </aside>
+  </div>
+
+  <p class="session-note">Patterns save on this device. Exports include settings, not audio.</p>
+</main>

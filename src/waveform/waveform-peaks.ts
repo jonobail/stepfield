@@ -1,10 +1,18 @@
-export interface WaveformPeaks { levels: Float32Array[]; blockSize: number; frames: number; sampleRate: number }
+export interface WaveformPeaks {
+  /** A peak pyramid: level 0 holds one peak per block, and each further level halves the resolution. */
+  levels: Float32Array[];
+  blockSize: number;
+  frames: number;
+  sampleRate: number;
+}
+
 /** Absolute maxima across channels keep opposite-phase stereo transients visible. */
 export function buildWaveformPeaks(channels: readonly Float32Array[], sampleRate: number): WaveformPeaks {
   const frames = channels[0]?.length ?? 0, blockSize = 128;
   const base = new Float32Array(Math.ceil(frames / blockSize));
   for (let bin = 0; bin < base.length; bin++) {
-    const end = Math.min(frames, (bin + 1) * blockSize); let peak = 0;
+    const end = Math.min(frames, (bin + 1) * blockSize);
+    let peak = 0;
     for (const channel of channels) for (let i = bin * blockSize; i < end; i++) peak = Math.max(peak, Math.abs(channel[i]));
     base[bin] = peak;
   }

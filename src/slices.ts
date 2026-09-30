@@ -13,11 +13,14 @@ export interface SliceState {
   confidence?: number;
 }
 
+/** Boundaries are 257 strictly increasing fractions of the recording, from exactly 0 to exactly 1. */
 export function validateBoundaries(value: unknown): number[] {
-  if (!Array.isArray(value) || value.length !== SLICE_COUNT + 1 || value[0] !== 0 || value[SLICE_COUNT] !== 1 ||
-      Array.from(value).some((n, i) => typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1 || (i > 0 && n <= value[i - 1]))) {
-    throw new Error('Invalid slice boundaries');
-  }
+  const valid = Array.isArray(value) &&
+    value.length === SLICE_COUNT + 1 &&
+    value[0] === 0 &&
+    value[SLICE_COUNT] === 1 &&
+    value.every((n, i) => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1 && (i === 0 || n > value[i - 1]));
+  if (!valid) throw new Error('Invalid slice boundaries');
   return [...value];
 }
 
@@ -56,16 +59,33 @@ export function transientBoundaries(channels: readonly Float32Array[], sampleRat
   const energy = new Float32Array(Math.ceil(length / hop));
   for (let frame = 0; frame < energy.length; frame++) {
     let sum = 0, count = 0;
-    for (const channel of channels) for (let i = frame * hop; i < Math.min(length, (frame + 1) * hop); i += 4) { sum += channel[i] ** 2; count++; }
+    const end = Math.min(length, (frame + 1) * hop);
+    // Every fourth sample is enough to estimate the window's energy.
+    for (const channel of channels) {
+      for (let i = frame * hop; i < end; i += 4) {
+        sum += channel[i] ** 2;
+        count++;
+      }
+    }
     energy[frame] = Math.sqrt(sum / Math.max(1, count));
   }
+
   const flux = new Float32Array(energy.length);
   let sum = 0, peak = 0;
-  for (let i = 1; i < energy.length; i++) { flux[i] = Math.max(0, energy[i] - energy[i - 1]); sum += flux[i]; peak = Math.max(peak, flux[i]); }
+  for (let i = 1; i < energy.length; i++) {
+    flux[i] = Math.max(0, energy[i] - energy[i - 1]);
+    sum += flux[i];
+    peak = Math.max(peak, flux[i]);
+  }
   if (peak < 1e-8) return equal;
+
+  // Onsets are local flux maxima well above the average.
   const threshold = Math.max(sum / flux.length * 1.8, peak * .08);
   const candidates: {frame: number; strength: number}[] = [];
-  for (let i = 1; i < flux.length - 1; i++) if (flux[i] >= threshold && flux[i] >= flux[i - 1] && flux[i] > flux[i + 1]) candidates.push({frame: i * hop, strength: flux[i]});
+  for (let i = 1; i < flux.length - 1; i++) {
+    const isPeak = flux[i] >= flux[i - 1] && flux[i] > flux[i + 1];
+    if (flux[i] >= threshold && isPeak) candidates.push({frame: i * hop, strength: flux[i]});
+  }
   const minimum = Math.max(1, Math.min(Math.round(sampleRate * .003), Math.floor(length / SLICE_COUNT)));
   const frames = [0, length];
   // Strong onsets win; ties use source order, so repeated analysis is deterministic.
@@ -77,7 +97,9 @@ export function transientBoundaries(channels: readonly Float32Array[], sampleRat
   // Fill missing divisions by bisecting the largest remaining region, preserving onsets.
   while (frames.length < SLICE_COUNT + 1) {
     let largest = 0;
-    for (let i = 1; i < frames.length - 1; i++) if (frames[i + 1] - frames[i] > frames[largest + 1] - frames[largest]) largest = i;
+    for (let i = 1; i < frames.length - 1; i++) {
+      if (frames[i + 1] - frames[i] > frames[largest + 1] - frames[largest]) largest = i;
+    }
     frames.splice(largest + 1, 0, Math.floor((frames[largest] + frames[largest + 1]) / 2));
   }
   return validateBoundaries(frames.map(frame => frame / length));
@@ -92,13 +114,19 @@ export function moveBoundary(state: SliceState, index: number, seconds: number, 
   const minimum = Math.max(1, Math.min(Math.round(sampleRate * .003), Math.floor((next - previous) / 2)));
   const frame = Math.max(previous + minimum, Math.min(next - minimum, Math.round(seconds * sampleRate)));
   if (Math.abs(state.boundaries[index] - frame / length) < 1e-12) return state;
-  const boundaries = [...state.boundaries]; boundaries[index] = frame / length;
+  const boundaries = [...state.boundaries];
+  boundaries[index] = frame / length;
   return {...state, boundaries, manuallyEdited: true};
 }
 
+/** Binary search for the slice containing a time given as a fraction of the recording. */
 export function sliceAtTime(boundaries: readonly number[], normalizedTime: number): number {
   let low = 0, high = SLICE_COUNT;
-  while (low + 1 < high) { const mid = (low + high) >>> 1; if (boundaries[mid] <= normalizedTime) low = mid; else high = mid; }
+  while (low + 1 < high) {
+    const mid = (low + high) >>> 1;
+    if (boundaries[mid] <= normalizedTime) low = mid;
+    else high = mid;
+  }
   return low;
 }
 
@@ -108,10 +136,26 @@ export function restoreSliceState(version: number, value: unknown): SliceState |
   if (version !== 2) throw new Error('Unsupported session version');
   if (value === null) return null;
   if (!value || typeof value !== 'object') throw new Error('Missing slice state');
-  const s = value as Record<string, unknown>;
-  if (typeof s['mode'] !== 'string' || typeof s['automaticMode'] !== 'string' || !['beat', 'transient', 'equal', 'manual'].includes(s['mode']) || !['beat', 'transient', 'equal'].includes(s['automaticMode']) || typeof s['manuallyEdited'] !== 'boolean') throw new Error('Invalid slice mode');
-  if (s['mode'] !== 'manual' && (s['manuallyEdited'] || s['mode'] !== s['automaticMode'])) throw new Error('Inconsistent slice mode');
-  for (const key of ['bpm', 'confidence']) if (s[key] !== undefined && (typeof s[key] !== 'number' || !Number.isFinite(s[key]))) throw new Error('Invalid analysis metadata');
-  if (s['bpm'] !== undefined && (Number(s['bpm']) < 30 || Number(s['bpm']) > 300) || s['confidence'] !== undefined && (Number(s['confidence']) < 0 || Number(s['confidence']) > 1)) throw new Error('Invalid analysis metadata');
-  return {mode: s['mode'] as SliceMode, automaticMode: s['automaticMode'] as AutomaticSliceMode, manuallyEdited: s['manuallyEdited'], boundaries: validateBoundaries(s['boundaries']), bpm: s['bpm'] as number | undefined, confidence: s['confidence'] as number | undefined};
+  const {mode, automaticMode, manuallyEdited, boundaries, bpm, confidence} = value as Record<string, unknown>;
+
+  const automaticModes: unknown[] = ['beat', 'transient', 'equal'];
+  if (!automaticModes.includes(automaticMode) || (mode !== 'manual' && !automaticModes.includes(mode)) || typeof manuallyEdited !== 'boolean') {
+    throw new Error('Invalid slice mode');
+  }
+  // Only manual mode can carry edits; automatic modes must match the map they were generated from.
+  if (mode !== 'manual' && (manuallyEdited || mode !== automaticMode)) throw new Error('Inconsistent slice mode');
+  if (!isOptionalNumberInRange(bpm, 30, 300) || !isOptionalNumberInRange(confidence, 0, 1)) throw new Error('Invalid analysis metadata');
+
+  return {
+    mode: mode as SliceMode,
+    automaticMode: automaticMode as AutomaticSliceMode,
+    manuallyEdited,
+    boundaries: validateBoundaries(boundaries),
+    bpm,
+    confidence,
+  };
+}
+
+function isOptionalNumberInRange(value: unknown, min: number, max: number): value is number | undefined {
+  return value === undefined || (typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max);
 }
