@@ -66,5 +66,7 @@ export function createApp(library = new MediaLibrary()) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const port = Number(process.env.PORT || 3001);
-  createApp().listen(port,'127.0.0.1',() => console.log(`Stepfield audio service: http://localhost:${port}`));
+  // Loopback only by default. Set HOST (e.g. a Tailscale IP) to reach it from other devices.
+  const host = process.env.HOST || '127.0.0.1';
+  createApp().listen(port,host,() => console.log(`Stepfield audio service: http://${host === '127.0.0.1' ? 'localhost' : host}:${port}`));
 }

@@ -89,7 +89,16 @@ export function requestPlaybackAudioSession() {
   } catch {}
 }
 
-/** Cached audio is stored at 32 kHz; decoding at that rate avoids expanding it to the device rate in memory. */
-export function decodeStoredAudio(bytes: ArrayBuffer): Promise<AudioBuffer> {
-  return new OfflineAudioContext(2, 1, 32000).decodeAudioData(bytes);
+/** Cached YouTube audio is stored at 32 kHz; decoding at that rate avoids expanding it in memory. */
+export const CACHED_AUDIO_SAMPLE_RATE = 32000;
+/** Local files are resampled to a common device rate, keeping full bandwidth for 44.1 and 48 kHz sources. */
+export const LOCAL_FILE_SAMPLE_RATE = 48000;
+
+/**
+ * Decode audio without touching the live AudioContext. The playback context must only be created
+ * inside a click or tap: one created outside a user gesture (such as a file picker's change event)
+ * can stay silent in some browsers.
+ */
+export function decodeAudio(bytes: ArrayBuffer, sampleRate: number): Promise<AudioBuffer> {
+  return new OfflineAudioContext(2, 1, sampleRate).decodeAudioData(bytes);
 }

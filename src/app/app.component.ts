@@ -9,7 +9,7 @@ import { TERMINAL_ROW_COLORS, getRowColor } from '../terminal-theme';
 import { buildWaveformPeaks, type WaveformPeaks } from '../waveform/waveform-peaks';
 import type { WaveformVoice } from '../waveform/waveform-renderer';
 import { SourceEditorComponent } from '../waveform/source-editor.component';
-import { createOutputChain, createVoice, decodeStoredAudio, playTestTone, requestPlaybackAudioSession } from './audio-graph';
+import { CACHED_AUDIO_SAMPLE_RATE, LOCAL_FILE_SAMPLE_RATE, createOutputChain, createVoice, decodeAudio, playTestTone, requestPlaybackAudioSession } from './audio-graph';
 import { downloadBlob, renderLoopWav } from './loop-export';
 import { deleteCachedTrack, encodeMp3, fetchCachedAudio, importYoutubeAudio, listCachedTracks, type CachedTrack } from './media-api';
 import { parseSession, readSavedSession, serializeSession, writeSavedSession, type SessionState } from './session';
@@ -344,7 +344,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.loading.set(true);
     this.message.set('Decoding audio…');
     try {
-      const decoded = await this.audioContext().decodeAudioData(await file.arrayBuffer());
+      const decoded = await decodeAudio(await file.arrayBuffer(), LOCAL_FILE_SAMPLE_RATE);
       if (decoded.length < SLICE_COUNT) throw new Error('Too short');
       // Reloading the same local file keeps its saved slice edits.
       const sameFile = !this.sourceId() && this.fileName() === file.name && Math.abs(this.duration() - decoded.duration) < 0.1;
@@ -370,7 +370,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
       const job = await importYoutubeAudio(url, controller.signal, progress => this.message.set(progress));
       this.message.set('Decoding audio and mapping 256 slices…');
       const bytes = await fetchCachedAudio(job.id, 'Cached audio expired. Import the link again.', controller.signal);
-      const decoded = await decodeStoredAudio(bytes);
+      const decoded = await decodeAudio(bytes, CACHED_AUDIO_SAMPLE_RATE);
       if (controller.signal.aborted) return;
 
       const analysis = this.useSource(decoded, job.title, job.id, this.sourceId() === job.id);
@@ -396,7 +396,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     this.message.set('Restoring cached audio…');
     try {
       const bytes = await fetchCachedAudio(id, 'Saved audio expired. Open Source to import the link again.');
-      const decoded = await decodeStoredAudio(bytes);
+      const decoded = await decodeAudio(bytes, CACHED_AUDIO_SAMPLE_RATE);
       if (this.sourceId() !== id) return;
       this.useSource(decoded, this.fileName(), id, true);
       this.message.set('Cached audio ready. Press Space or Play.');

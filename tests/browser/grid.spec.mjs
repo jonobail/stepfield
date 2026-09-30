@@ -256,3 +256,17 @@ test('dropdowns built from lists show their current values on first render',asyn
   await page.reload();
   await expect(page.getByRole('combobox',{name:'Modulation cycle'})).toHaveValue('16');
 });
+
+test('loading a local file does not create the playback AudioContext outside a click',async ({page}) => {
+  await page.addInitScript(() => {
+    window.contextsCreated = 0;
+    const Native = window.AudioContext;
+    window.AudioContext = class extends Native { constructor(...args) { super(...args); window.contextsCreated++; } };
+  });
+  await page.goto('/');
+  await page.getByLabel('Import local audio or video',{exact:true}).setInputFiles({name:'tone.wav',mimeType:'audio/wav',buffer:wave()});
+  await expect(page.getByRole('status')).toContainText('slices');
+  expect(await page.evaluate(() => window.contextsCreated)).toBe(0);
+  await page.locator('.pad').first().click();
+  await expect.poll(() => page.evaluate(() => window.contextsCreated)).toBe(1);
+});
