@@ -392,3 +392,67 @@ main, .app-header { width:100%; max-width:none; margin-inline:0; padding-inline:
 @media(max-width:560px) {
   .inspector .performance-bar .control-jumps { display:flex; grid-column:1 / -1; width:100%; margin:0; justify-content:space-between; border-top:1px solid var(--border); }
 }
+
+/* ── Loading audio ── */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.status-bar { align-items: center; padding-top: 6px; padding-bottom: 10px; }
+.load-audio, .load-source .load-file {
+  background: var(--text-primary);
+  color: var(--surface-background);
+  font-weight: 600;
+}
+.load-audio:hover:not(:disabled), .load-source .load-file:hover:not(:disabled) {
+  background: #fff;
+  color: var(--surface-background);
+}
+.load-audio {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.load-audio.subtle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.load-audio.subtle:hover:not(:disabled) { background: var(--surface-elevated); color: var(--text-primary); }
+.load-source { margin: 2px 0 4px; }
+.load-source .load-file { width: 100%; min-height: 46px; border-radius: 8px; font-size: 13px; }
+.load-source .fine { margin: 8px 0 0; }
+.source-deck .divider { margin: 16px 0 10px; }
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: #0d1214d9;
+  pointer-events: none;
+}
+.drop-overlay span {
+  padding: 28px 40px;
+  border: 2px dashed var(--text-primary);
+  border-radius: 16px;
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  font-size: 16px;
+  text-align: center;
+}
+@media (max-width: 420px) {
+  .load-audio { padding: 7px 12px; font-size: 11px; }
+}
+.source-deck > .session-actions { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }

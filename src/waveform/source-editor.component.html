@@ -90,7 +90,10 @@
     <p class="hint">Click to assign a slice to this row. {{ state.mode === 'manual' ? 'Drag an edge to trim; use the top markers for other boundaries.' : 'Drag to pan when zoomed.' }} Shift-drag to pan · Ctrl/⌘-wheel to zoom.</p>
   } @else {
     <div class="waveform-surface empty-waveform" aria-label="Waveform preview">
-      <p class="hint">Load a recording to see and edit its 256 source slices.</p>
+      <button class="choose-audio" (click)="chooseAudio.emit()">
+        <strong>Choose an audio file</strong>
+        <span class="hint">Its waveform and 256 source slices will appear here.</span>
+      </button>
     </div>
   }
 </section>

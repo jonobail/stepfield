@@ -54,6 +54,10 @@ const MUTED_MESSAGE = 'Master volume is at 0%. Raise the Volume control to hear 
     '(document:pointermove)': 'continuePadGesture($event)',
     '(document:pointerup)': 'endPadGesture($event)',
     '(document:pointercancel)': 'endPadGesture($event)',
+    '(document:dragenter)': 'onFileDragEnter($event)',
+    '(document:dragleave)': 'onFileDragLeave($event)',
+    '(document:dragover)': 'onFileDragOver($event)',
+    '(document:drop)': 'onFileDrop($event)',
   },
 })
 export class AppComponent implements AfterViewInit, OnDestroy {
@@ -120,12 +124,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly storageBytes = signal(0);
   readonly cachedTracks = signal<CachedTrack[]>([]);
 
-  readonly message = signal('Import a recording, select slices, then press Play.');
+  readonly message = signal('Choose an audio file to begin, then tap pads and press Play.');
+  /** A file is being dragged over the page. */
+  readonly fileDragActive = signal(false);
 
   // ── View-derived labels ──
   readonly statusLabel = computed(() => this.running() ? 'Playing' : this.loaded() ? 'Ready' : 'No audio loaded');
   readonly playLabel = computed(() =>
-    this.loading() ? 'Loading audio…' : !this.loaded() ? 'Load audio to play' : this.running() ? 'Playing' : '▶ Play');
+    this.loading() ? 'Loading audio…' : !this.loaded() ? 'Choose audio to play' : this.running() ? 'Playing' : '▶ Play');
   readonly gridHint = computed(() =>
     this.mode() === 'edit' ? 'Select a pad to edit' : this.running() ? 'Tap to change steps' : 'Tap to toggle + preview');
   readonly sourceSummary = computed(() =>
@@ -160,6 +166,9 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   // ── Pad lighting (direct DOM updates, outside change detection) ──
   @ViewChildren('padButton') private padButtons!: QueryList<ElementRef<HTMLButtonElement>>;
   @ViewChild(SourceEditorComponent) private sourceEditor?: SourceEditorComponent;
+  @ViewChild('audioFile') private audioFileInput?: ElementRef<HTMLInputElement>;
+  /** dragenter/dragleave fire for every child element crossed; count them to know when the drag leaves the page. */
+  private fileDragDepth = 0;
   private padNodes: HTMLButtonElement[] = [];
   private litPads = new Set<number>();
   private animationFrame = 0;
@@ -330,11 +339,19 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
   // ════════════════════════ Loading source audio ════════════════════════
 
-  async loadFile(event: Event) {
+  chooseAudioFile() {
+    this.audioFileInput?.nativeElement.click();
+  }
+
+  onAudioFileChosen(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
-    if (!file || this.loading()) return;
+    if (file) void this.loadAudioFile(file);
+  }
+
+  async loadAudioFile(file: File) {
+    if (this.loading()) return;
     if (file.size > MAX_FILE_BYTES) {
       this.message.set('Choose a file smaller than 150 MB to limit browser memory use.');
       return;
@@ -470,6 +487,37 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     return confident
       ? `Beat grid detected at ${analysis.bpm} BPM · 256 quantized slices ready`
       : `No clear beat grid detected; slices aligned to ${analysis.bpm} BPM`;
+  }
+
+  // ════════════════════════ Drag and drop ════════════════════════
+
+  onFileDragEnter(event: DragEvent) {
+    if (!carriesFiles(event)) return;
+    this.fileDragDepth++;
+    this.fileDragActive.set(true);
+  }
+
+  onFileDragLeave(event: DragEvent) {
+    if (!carriesFiles(event)) return;
+    this.fileDragDepth = Math.max(0, this.fileDragDepth - 1);
+    if (!this.fileDragDepth) this.fileDragActive.set(false);
+  }
+
+  onFileDragOver(event: DragEvent) {
+    // Cancelling dragover is what allows a drop; otherwise the browser opens the file itself.
+    if (carriesFiles(event)) event.preventDefault();
+  }
+
+  /** Dropped pattern exports are imported; anything else is loaded as audio. */
+  onFileDrop(event: DragEvent) {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    this.fileDragDepth = 0;
+    this.fileDragActive.set(false);
+    const file = event.dataTransfer?.files[0];
+    if (!file) return;
+    if (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json')) void this.importSessionFile(file);
+    else void this.loadAudioFile(file);
   }
 
   // ════════════════════════ Cached audio storage ════════════════════════
@@ -979,11 +1027,14 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     downloadBlob(new Blob([json], {type: 'application/json'}), 'stepfield-pattern.json');
   }
 
-  async importSession(event: Event) {
+  importSession(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
-    if (!file) return;
+    if (file) void this.importSessionFile(file);
+  }
+
+  private async importSessionFile(file: File) {
     try {
       if (file.size > 100_000) throw new Error('Pattern file too large');
       this.applySession(parseSession(JSON.parse(await file.text())));
@@ -1036,4 +1087,8 @@ export class AppComponent implements AfterViewInit, OnDestroy {
 
 function channelData(buffer: AudioBuffer) {
   return Array.from({length: buffer.numberOfChannels}, (_, channel) => buffer.getChannelData(channel));
+}
+
+function carriesFiles(event: DragEvent) {
+  return event.dataTransfer?.types.includes('Files') ?? false;
 }

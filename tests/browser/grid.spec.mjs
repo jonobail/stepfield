@@ -136,9 +136,12 @@ test('selecting a step auditions its slice while stopped; running selection wait
   expect(sequenceStart.offset).toBe(4);
   const selectedAt = sequenceStart.when;
   await page.locator('.pad').nth(33).click();
-  await expect.poll(() => page.evaluate(() => window.audioStarts.length)).toBe(2);
-  const next = await page.evaluate(() => window.audioStarts[1]);
-  expect(next.offset).toBe(8); expect(next.when).toBeGreaterThanOrEqual(selectedAt);
+  // Pad 33 (slice offset 8 s) sounds at its next step: this cycle or, if its column already passed, the next one.
+  await expect.poll(() => page.evaluate(() => window.audioStarts.some(start => start.offset === 8))).toBe(true);
+  const next = await page.evaluate(() => window.audioStarts.find(start => start.offset === 8));
+  expect(next.when).toBeGreaterThanOrEqual(selectedAt);
+  const stepsAfter = (next.when - selectedAt) / .125;
+  expect(Math.abs(stepsAfter - Math.round(stepsAfter))).toBeLessThan(1e-6);
   await expect(page.locator('.pad').nth(33)).toHaveAttribute('aria-pressed','true');
   await page.getByRole('button',{name:'■ Stop',exact:true}).click();
 });
@@ -269,4 +272,38 @@ test('loading a local file does not create the playback AudioContext outside a c
   expect(await page.evaluate(() => window.contextsCreated)).toBe(0);
   await page.locator('.pad').first().click();
   await expect.poll(() => page.evaluate(() => window.contextsCreated)).toBe(1);
+});
+
+test('choosing audio is the first visible action, and Play opens the file picker until audio loads',async ({page}) => {
+  for (const [width,height] of [[1280,900],[390,844]]) {
+    await page.setViewportSize({width,height}); await page.goto('/');
+    await expect(page.getByRole('button',{name:'Choose audio file',exact:true})).toBeInViewport();
+  }
+  let chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button',{name:'Choose audio file',exact:true}).click();
+  await (await chooser).setFiles({name:'tone.wav',mimeType:'audio/wav',buffer:wave()});
+  await expect(page.getByRole('status')).toContainText('slices');
+  await expect(page.getByRole('button',{name:'Change audio',exact:true})).toBeVisible();
+  await expect(page.locator('.source-name')).toHaveText('tone.wav');
+
+  await page.evaluate(() => localStorage.clear()); await page.reload();
+  chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button',{name:'Choose audio to play',exact:true}).click();
+  await chooser;
+});
+
+test('dropping an audio file anywhere on the page loads it',async ({page}) => {
+  await page.goto('/');
+  const data = await page.evaluateHandle(base64 => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([Uint8Array.from(atob(base64),c => c.charCodeAt(0))],'dropped.wav',{type:'audio/wav'}));
+    return transfer;
+  }, wave().toString('base64'));
+  const fire = type => page.evaluate(([type,dataTransfer]) => document.querySelector('.grid').dispatchEvent(new DragEvent(type,{bubbles:true,cancelable:true,dataTransfer})), [type,data]);
+  await fire('dragenter'); await fire('dragover');
+  await expect(page.locator('.drop-overlay')).toBeVisible();
+  await fire('drop');
+  await expect(page.locator('.drop-overlay')).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('slices');
+  await expect(page.locator('.source-name')).toHaveText('dropped.wav');
 });

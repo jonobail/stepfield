@@ -53,6 +53,8 @@ export class SourceEditorComponent implements AfterViewInit, OnChanges, OnDestro
   @Output() boundaryChange = new EventEmitter<BoundaryEdit>();
   /** Emits true for a raw audition, false for one with the row's sound settings. */
   @Output() audition = new EventEmitter<boolean>();
+  /** The empty state asks the app to open its file picker. */
+  @Output() chooseAudio = new EventEmitter<void>();
 
   @ViewChild('wave') private wave?: ElementRef<HTMLCanvasElement>;
   @ViewChild('activity') private activity?: ElementRef<HTMLCanvasElement>;

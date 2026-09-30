@@ -12,7 +12,9 @@
 <main>
   <div class="status-bar">
     <p class="status" role="status">{{ message() }}</p>
-    <span>16 × 16</span>
+    <button class="load-audio" [class.subtle]="loaded()" [disabled]="loading()" (click)="chooseAudioFile()">
+      {{ loading() ? 'Loading audio…' : loaded() ? 'Change audio' : 'Choose audio file' }}
+    </button>
   </div>
 
   <div class="workspace">
@@ -73,7 +75,7 @@
             </select>
           </label>
           <div class="transport">
-            <button class="play" [disabled]="!loaded() || loading() || running()" (click)="start()" title="Play · Space">{{ playLabel() }}</button>
+            <button class="play" [disabled]="loading() || running()" (click)="loaded() ? start() : chooseAudioFile()" title="Play · Space">{{ playLabel() }}</button>
             <button class="stop" (click)="stop()" title="Stop · Space">■ Stop</button>
             <button class="clear-pattern" (click)="clearPattern()">Clear pattern</button>
           </div>
@@ -101,37 +103,46 @@
               <span class="source-meta">{{ sourceSummary() }}</span>
             </div>
           </div>
+        </div>
 
-          <section id="panel-session" class="session-actions" aria-label="Session controls">
-            <span class="section-label">Session</span>
-            <button class="connect" (click)="exportSession()">Export pattern ↗</button>
-            <label class="file-picker">Import pattern<input aria-label="Import pattern" type="file" accept="application/json" (change)="importSession($event)"></label>
-            <button class="connect loop-export" [disabled]="!canExportLoop()" (click)="downloadLoop('wav')">{{ exporting() ? 'Rendering loop…' : 'Download loop · WAV' }}</button>
-            @if (mediaService) {
-              <button class="connect loop-export" [disabled]="!canExportLoop()" (click)="downloadLoop('mp3')">Download loop · MP3</button>
-            }
-          </section>
+        <div class="load-source">
+          <button class="primary load-file" [disabled]="loading()" (click)="chooseAudioFile()">Choose audio or video file</button>
+          <p class="fine">WAV, MP3, M4A, FLAC, OGG, or a video's soundtrack. You can also drop a file anywhere on the page.</p>
+          <input
+            #audioFile
+            class="visually-hidden"
+            tabindex="-1"
+            aria-label="Import local audio or video"
+            type="file"
+            accept="audio/*,video/*,.wav,.mp3,.m4a,.mp4,.webm,.ogg,.flac"
+            [disabled]="loading()"
+            (change)="onAudioFileChosen($event)"
+          >
         </div>
 
         @if (mediaService) {
+          <p class="divider">or import from YouTube</p>
           <form class="youtube-import" (submit)="$event.preventDefault(); importYoutube(youtube.value)">
             <label>YouTube link<input #youtube type="url" required placeholder="Paste a video link…" [disabled]="loading()"></label>
             <button class="primary" type="submit" [disabled]="loading()">{{ loading() ? 'Importing…' : 'Import YouTube audio' }}</button>
           </form>
         }
 
-        <div class="source-extras">
-          <label class="file-picker">Choose audio or video<input
-              aria-label="Import local audio or video"
-              type="file"
-              accept="audio/*,video/*,.wav,.mp3,.m4a,.mp4,.webm,.ogg,.flac"
-              [disabled]="loading()"
-              (change)="loadFile($event)"
-            ></label>
+        @if (mediaService && sourceId() && !loaded()) {
+          <div class="source-extras">
+            <button class="connect" [disabled]="loading()" (click)="reloadAudio()">Reload saved YouTube audio</button>
+          </div>
+        }
+
+        <section id="panel-session" class="session-actions" aria-label="Session controls">
+          <span class="section-label">Session</span>
+          <button class="connect" (click)="exportSession()">Export pattern ↗</button>
+          <label class="file-picker">Import pattern<input aria-label="Import pattern" type="file" accept="application/json" (change)="importSession($event)"></label>
+          <button class="connect loop-export" [disabled]="!canExportLoop()" (click)="downloadLoop('wav')">{{ exporting() ? 'Rendering loop…' : 'Download loop · WAV' }}</button>
           @if (mediaService) {
-            <button class="connect" [hidden]="!sourceId() || loaded()" [disabled]="loading()" (click)="reloadAudio()">Reload saved YouTube audio</button>
+            <button class="connect loop-export" [disabled]="!canExportLoop()" (click)="downloadLoop('mp3')">Download loop · MP3</button>
           }
-        </div>
+        </section>
 
         @if (mediaService) {
           <section class="storage-manager" aria-label="Audio storage">
@@ -179,6 +190,7 @@
         (resetSlices)="resetSlices()"
         (boundaryChange)="editBoundary($event)"
         (audition)="auditionWaveform($event)"
+        (chooseAudio)="chooseAudioFile()"
       ></source-editor>
 
       <!-- ───────────── Sound shaping ───────────── -->
@@ -282,3 +294,7 @@
 
   <p class="session-note">Patterns save on this device. Exports include settings, not audio.</p>
 </main>
+
+@if (fileDragActive()) {
+  <div class="drop-overlay" aria-hidden="true"><span>Drop an audio file to load it</span></div>
+}
