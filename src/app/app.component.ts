@@ -4,7 +4,7 @@ import { pad2, pad3 } from '../format';
 import { DEFAULT_MODULATION, MODULATION_RATES, modulateSound, restoreModulation, type Modulation } from '../modulation';
 import { DEFAULT_SOUND, SOUND_CONTROLS, effectiveSound, voiceShape, type PadSound, type SoundKey, type SoundSettings } from '../sampler';
 import { PAD_COUNT, ROW_COUNT, VIEW_STEPS, assignRowSample, columnOf, columnPads, moveStep, quantizeAudioSlices, rowOf, rowPads, sliceBounds, type AudioSlice } from '../sequencer';
-import { SLICE_COUNT, boundariesToSlices, equalBoundaries, moveBoundary, slicesToBoundaries, transientBoundaries, type AutomaticSliceMode, type SliceMode, type SliceState } from '../slices';
+import { SLICE_COUNT, boundariesToSlices, equalBoundaries, moveBoundary, moveSlice, slicesToBoundaries, transientBoundaries, type AutomaticSliceMode, type SliceMode, type SliceState } from '../slices';
 import { TERMINAL_ROW_COLORS, getRowColor } from '../terminal-theme';
 import { buildWaveformPeaks, type WaveformPeaks } from '../waveform/waveform-peaks';
 import type { WaveformVoice } from '../waveform/waveform-renderer';
@@ -588,6 +588,17 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const state = this.sliceState();
     if (!state || !this.buffer) return;
     const next = moveBoundary(state, edit.index, edit.seconds, this.buffer.length, this.buffer.sampleRate);
+    if (next !== state) {
+      this.sliceState.set(next);
+      this.refreshQueuedSound(true);
+    }
+    if (edit.commit) this.persist();
+  }
+
+  moveSourceSlice(edit: {slice: number; seconds: number; commit: boolean}) {
+    const state = this.sliceState();
+    if (!state || !this.buffer) return;
+    const next = moveSlice(state, edit.slice, edit.seconds, this.buffer.length, this.buffer.sampleRate);
     if (next !== state) {
       this.sliceState.set(next);
       this.refreshQueuedSound(true);

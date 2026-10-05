@@ -87,7 +87,7 @@
       </div>
     }
 
-    <p class="hint">Click to assign a slice to this row. {{ state.mode === 'manual' ? 'Drag an edge to trim; use the top markers for other boundaries.' : 'Drag to pan when zoomed.' }} Shift-drag to pan · Ctrl/⌘-wheel to zoom.</p>
+    <p class="hint">Click to assign a slice to this row. Drag the highlighted slice to move it, or an edge to trim; use the top markers for other boundaries. Dragging switches to Manual. Shift-drag to pan · Ctrl/⌘-wheel to zoom.</p>
   } @else {
     <div class="waveform-surface empty-waveform" aria-label="Waveform preview">
       <button class="choose-audio" (click)="chooseAudio.emit()">

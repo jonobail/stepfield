@@ -119,6 +119,25 @@ export function moveBoundary(state: SliceState, index: number, seconds: number, 
   return {...state, boundaries, manuallyEdited: true};
 }
 
+/** Move a whole slice to start at `seconds`, keeping its length; its neighbours shrink or grow to match. */
+export function moveSlice(state: SliceState, slice: number, seconds: number, length: number, sampleRate: number): SliceState {
+  if (state.mode !== 'manual' || !Number.isInteger(slice) || slice <= 0 || slice >= SLICE_COUNT - 1 || !Number.isFinite(seconds)) return state;
+  const slices = boundariesToSlices(state.boundaries, length, sampleRate);
+  const previous = Math.round(slices[slice - 1].offset * sampleRate);
+  const start = Math.round(slices[slice].offset * sampleRate);
+  const size = Math.round((slices[slice].offset + slices[slice].duration) * sampleRate) - start;
+  const next = Math.round((slices[slice + 1].offset + slices[slice + 1].duration) * sampleRate);
+  if (next - previous - size < 2) return state;
+  // Neighbours keep 3 ms where possible, as with a single boundary edit.
+  const minimum = Math.max(1, Math.min(Math.round(sampleRate * .003), Math.floor((next - previous - size) / 2)));
+  const frame = Math.max(previous + minimum, Math.min(next - minimum - size, Math.round(seconds * sampleRate)));
+  if (frame === start) return state;
+  const boundaries = [...state.boundaries];
+  boundaries[slice] = frame / length;
+  boundaries[slice + 1] = (frame + size) / length;
+  return {...state, boundaries, manuallyEdited: true};
+}
+
 /** Binary search for the slice containing a time given as a fraction of the recording. */
 export function sliceAtTime(boundaries: readonly number[], normalizedTime: number): number {
   let low = 0, high = SLICE_COUNT;

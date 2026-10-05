@@ -124,6 +124,18 @@ test('manual edges clamp, fixed endpoints stay locked, and both edges are dragga
 });
 
 
+test('dragging the selected slice window moves the whole slice and switches to manual',async({page})=>{
+  await load(page);await choose(page,37);await page.getByRole('button',{name:'Locate selected slice'}).click();
+  await canvas(page).scrollIntoViewIfNeeded();const box=await canvas(page).boundingBox();
+  const start=Number(await canvas(page).getAttribute('data-view-start')),end=Number(await canvas(page).getAttribute('data-view-end'));
+  const middle=box.x+(9.125-start)/(end-start)*box.width;
+  await page.mouse.move(middle,box.y+80);await page.mouse.down();await page.mouse.move(middle+.1/(end-start)*box.width,box.y+80,{steps:6});await page.mouse.up();
+  await expect.poll(async()=>(await session(page)).sliceState.boundaries[36]*64).toBeCloseTo(9.1,3);
+  const state=(await session(page)).sliceState;expect(state.mode).toBe('manual');expect(state.manuallyEdited).toBe(true);
+  expect((state.boundaries[37]-state.boundaries[36])*64).toBeCloseTo(.25,3);
+  expect(Number(await canvas(page).getAttribute('data-view-start'))).toBe(start);
+});
+
 test('visible row and slice dropdowns change audio during playback without editing the pattern',async({page})=>{
   await load(page);
   

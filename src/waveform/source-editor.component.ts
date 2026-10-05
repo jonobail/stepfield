@@ -12,7 +12,14 @@ export interface BoundaryEdit {
   commit: boolean;
 }
 
-/** A pointer interaction on the waveform: a click, a pan, or a boundary drag. */
+export interface SliceMoveEdit {
+  slice: number;
+  /** New start time; the slice keeps its length. */
+  seconds: number;
+  commit: boolean;
+}
+
+/** A pointer interaction on the waveform: a click, a pan, a boundary drag, or a whole-slice drag. */
 interface WaveformGesture {
   pointerId: number;
   startX: number;
@@ -20,6 +27,11 @@ interface WaveformGesture {
   viewEnd: number;
   /** Boundary being dragged, or -1 when panning/clicking. */
   boundary: number;
+  /** True when dragging the selected slice's window as a whole. */
+  slide: boolean;
+  /** Pointer time and slice start when the press began, for whole-slice drags. */
+  grabTime: number;
+  grabStart: number;
   moved: boolean;
   pan: boolean;
 }
@@ -51,6 +63,7 @@ export class SourceEditorComponent implements AfterViewInit, OnChanges, OnDestro
   @Output() changeMode = new EventEmitter<SliceMode>();
   @Output() resetSlices = new EventEmitter<void>();
   @Output() boundaryChange = new EventEmitter<BoundaryEdit>();
+  @Output() sliceMove = new EventEmitter<SliceMoveEdit>();
   /** Emits true for a raw audition, false for one with the row's sound settings. */
   @Output() audition = new EventEmitter<boolean>();
   /** The empty state asks the app to open its file picker. */
@@ -98,7 +111,6 @@ export class SourceEditorComponent implements AfterViewInit, OnChanges, OnDestro
       this.viewEnd = this.duration;
       this.pendingMode = null;
     }
-    if (this.state?.mode !== 'manual') this.hover = -1;
     if (this.selected !== this.lastSelection || (changes['state'] && !this.gesture)) this.ensureVisible();
     this.lastSelection = this.selected;
     this.render();
@@ -193,12 +205,16 @@ export class SourceEditorComponent implements AfterViewInit, OnChanges, OnDestro
 
   down(event: PointerEvent) {
     if (event.button !== 0 || !this.wave || !this.state || this.gesture) return;
+    const boundary = event.shiftKey ? -1 : this.boundaryAt(event);
     this.gesture = {
       pointerId: event.pointerId,
       startX: event.clientX,
       viewStart: this.viewStart,
       viewEnd: this.viewEnd,
-      boundary: event.shiftKey ? -1 : this.boundaryAt(event),
+      boundary,
+      slide: !event.shiftKey && boundary < 0 && this.inSelectedWindow(event.clientX),
+      grabTime: this.timeAt(event.clientX),
+      grabStart: this.start(),
       moved: false,
       pan: event.shiftKey,
     };
@@ -210,9 +226,12 @@ export class SourceEditorComponent implements AfterViewInit, OnChanges, OnDestro
     if (gesture && gesture.pointerId === event.pointerId) {
       if (Math.abs(event.clientX - gesture.startX) > DRAG_THRESHOLD_PX) gesture.moved = true;
       if (!gesture.moved) return;
+      if (gesture.boundary > 0 || gesture.slide) this.ensureManual();
       if (gesture.boundary > 0) {
         this.hover = gesture.boundary;
         this.boundaryChange.emit({index: gesture.boundary, seconds: this.timeAt(event.clientX), commit: false});
+      } else if (gesture.slide) {
+        this.sliceMove.emit({slice: this.selected, seconds: this.slideTarget(gesture, event.clientX), commit: false});
       } else {
         const span = gesture.viewEnd - gesture.viewStart;
         const width = this.wave!.nativeElement.clientWidth;
@@ -225,7 +244,12 @@ export class SourceEditorComponent implements AfterViewInit, OnChanges, OnDestro
         this.render();
       }
     }
-    if (this.wave) this.wave.nativeElement.style.cursor = this.hover > 0 ? 'ew-resize' : 'grab';
+    if (this.wave) {
+      this.wave.nativeElement.style.cursor = this.hover > 0 ? 'ew-resize'
+        : gesture?.slide ? 'grabbing'
+        : !gesture && !event.shiftKey && this.inSelectedWindow(event.clientX) ? 'move'
+        : 'grab';
+    }
   }
 
   up(event: PointerEvent) {
@@ -234,6 +258,8 @@ export class SourceEditorComponent implements AfterViewInit, OnChanges, OnDestro
     this.gesture = null;
     if (gesture.moved && gesture.boundary > 0) {
       this.boundaryChange.emit({index: gesture.boundary, seconds: this.timeAt(event.clientX), commit: true});
+    } else if (gesture.moved && gesture.slide) {
+      this.sliceMove.emit({slice: this.selected, seconds: this.slideTarget(gesture, event.clientX), commit: true});
     } else if (!gesture.moved && !gesture.pan && this.state) {
       // A click without dragging assigns the slice under the pointer.
       this.selectSlice.emit(sliceAtTime(this.state.boundaries, this.timeAt(event.clientX) / this.duration));
@@ -248,6 +274,8 @@ export class SourceEditorComponent implements AfterViewInit, OnChanges, OnDestro
     // Commit the boundary where it was last emitted, so the parent saves it.
     if (gesture?.moved && gesture.boundary > 0 && this.state) {
       this.boundaryChange.emit({index: gesture.boundary, seconds: this.state.boundaries[gesture.boundary] * this.duration, commit: true});
+    } else if (gesture?.moved && gesture.slide && this.state) {
+      this.sliceMove.emit({slice: this.selected, seconds: this.start(), commit: true});
     }
     this.hover = -1;
     this.render();
@@ -315,9 +343,25 @@ export class SourceEditorComponent implements AfterViewInit, OnChanges, OnDestro
     return Math.max(this.viewStart, Math.min(this.viewEnd, time));
   }
 
-  /** The draggable boundary under the pointer (manual mode only), or -1. */
+  /** Dragging edits the map by hand; switching to manual keeps the current boundaries. */
+  private ensureManual() {
+    if (this.state && this.state.mode !== 'manual') this.changeMode.emit('manual');
+  }
+
+  /** Whether a client x coordinate is inside the selected slice, which can be dragged as a whole unless it touches a fixed endpoint. */
+  private inSelectedWindow(clientX: number) {
+    if (!this.state || this.selected <= 0 || this.selected >= SLICE_COUNT - 1) return false;
+    const time = this.timeAt(clientX);
+    return time > this.start() && time < this.end();
+  }
+
+  private slideTarget(gesture: WaveformGesture, clientX: number) {
+    return gesture.grabStart + this.timeAt(clientX) - gesture.grabTime;
+  }
+
+  /** The draggable boundary under the pointer, or -1. */
   private boundaryAt(event: PointerEvent) {
-    if (this.state?.mode !== 'manual' || !this.wave) return -1;
+    if (!this.state || !this.wave) return -1;
     const rect = this.wave.nativeElement.getBoundingClientRect();
     const time = this.timeAt(event.clientX);
     const tolerance = (event.pointerType === 'touch' ? 10 : 5) / rect.width * (this.viewEnd - this.viewStart);

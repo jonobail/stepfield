@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { equalBoundaries, boundariesToSlices, slicesToBoundaries, transientBoundaries, moveBoundary, restoreSliceState, validateBoundaries, sliceAtTime } from '../src/slices.ts';
+import { equalBoundaries, boundariesToSlices, slicesToBoundaries, transientBoundaries, moveBoundary, moveSlice, restoreSliceState, validateBoundaries, sliceAtTime } from '../src/slices.ts';
 import { buildWaveformPeaks } from '../src/waveform/waveform-peaks.ts';
 
 const state = (length = 64000) => ({mode:'manual',automaticMode:'equal',boundaries:equalBoundaries(length),manuallyEdited:false});
@@ -85,4 +85,15 @@ test('waveform peaks retain impulses across stereo channels without phase cancel
   assert.ok(peaks.levels[0][1]>.89);assert.ok(peaks.levels[0][5]>.69); assert.ok(peaks.levels.at(-1)[0]>.89);
   assert.equal(peaks.levels[0].length,8); assert.equal(left[140],Math.fround(.9)); assert.equal(right[140],Math.fround(-.9));
   assert.ok(buildWaveformPeaks([new Float32Array(10000)],1000).levels[0].every(v=>v===0));
+});
+
+test('moving a whole slice keeps its length, clamps against neighbours, and leaves fixed endpoints alone', () => {
+  const original=state(), moved=moveSlice(original,10,2.6,64000,1000);
+  assert.equal(moved.boundaries[10],2.6/64); assert.equal(moved.boundaries[11],2.85/64); assert.equal(moved.manuallyEdited,true); assertPartition(moved.boundaries);
+  assert.deepEqual([moveSlice(original,10,-100,64000,1000).boundaries[10],moveSlice(original,10,-100,64000,1000).boundaries[11]],[2.253/64,2.503/64]);
+  assert.deepEqual([moveSlice(original,10,1000,64000,1000).boundaries[10],moveSlice(original,10,1000,64000,1000).boundaries[11]],[2.747/64,2.997/64]);
+  for(const slice of [0,255,-1,2.5]) assert.equal(moveSlice(original,slice,5,64000,1000),original);
+  assert.equal(moveSlice(original,10,NaN,64000,1000),original);
+  assert.equal(moveSlice({...original,mode:'equal'},10,2.6,64000,1000).manuallyEdited,false);
+  assertPartition(moveSlice(state(256),20,100,256,48000).boundaries,256,48000);
 });
