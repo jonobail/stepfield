@@ -29,5 +29,12 @@ test('legacy sessions get full slices; settings round-trip and reject unsafe val
   for (const invalid of [{length:0},{pitch:25},{pan:Infinity},{release:'3'},{extra:1}]) {
     const pads = [...legacy.pads]; pads[0] = invalid; assert.throws(() => restoreSounds(DEFAULT_SOUND,pads));
   }
-  assert.throws(() => restoreSounds({...DEFAULT_SOUND,length:101},legacy.pads));
+  assert.throws(() => restoreSounds({...DEFAULT_SOUND,length:1601},legacy.pads));
+});
+
+test('length above 100% plays on past the slice end, but never past the recording', () => {
+  assert.equal(voiceShape(.02,{...DEFAULT_SOUND,length:800},10).sourceDuration,.16);
+  assert.equal(voiceShape(.02,{...DEFAULT_SOUND,length:1600},.1).sourceDuration,.1);
+  assert.equal(voiceShape(.02,{...DEFAULT_SOUND,length:800}).sourceDuration,.02);
+  assert.equal(voiceShape(.02,{...DEFAULT_SOUND,length:800,pitch:12},10).duration,.08);
 });

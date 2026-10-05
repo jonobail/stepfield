@@ -29,7 +29,7 @@ export async function renderLoopWav(input: LoopRenderInput): Promise<ArrayBuffer
   const activeRows = (step: number) =>
     Array.from({length: ROW_COUNT}, (_, row) => row).filter(row => pattern[padIndex(row, step % VIEW_STEPS)]);
   const shapeAt = (row: number, step: number) =>
-    voiceShape(rowSlices[row].duration, modulateSound(effectiveSound(globalSound, rowSounds[row]), modulation, step));
+    voiceShape(rowSlices[row].duration, modulateSound(effectiveSound(globalSound, rowSounds[row]), modulation, step), buffer.duration - rowSlices[row].offset);
 
   let longestVoice = 0;
   for (let step = 0; step < cycleSteps; step++) {

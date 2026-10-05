@@ -2,7 +2,7 @@ import { AfterViewInit, Component, ElementRef, OnDestroy, QueryList, ViewChild, 
 import { environment } from '../environments/environment';
 import { pad2, pad3 } from '../format';
 import { DEFAULT_MODULATION, MODULATION_RATES, modulateSound, restoreModulation, type Modulation } from '../modulation';
-import { DEFAULT_SOUND, SOUND_CONTROLS, effectiveSound, voiceShape, type PadSound, type SoundKey, type SoundSettings } from '../sampler';
+import { DEFAULT_SOUND, SOUND_CONTROLS, effectiveSound, voiceShape, type PadSound, type SoundControl, type SoundKey, type SoundSettings } from '../sampler';
 import { PAD_COUNT, ROW_COUNT, VIEW_STEPS, assignRowSample, columnOf, columnPads, moveStep, quantizeAudioSlices, rowOf, rowPads, sliceBounds, type AudioSlice } from '../sequencer';
 import { SLICE_COUNT, boundariesToSlices, equalBoundaries, moveBoundary, moveSlice, slicesToBoundaries, transientBoundaries, type AutomaticSliceMode, type SliceMode, type SliceState } from '../slices';
 import { TERMINAL_ROW_COLORS, getRowColor } from '../terminal-theme';
@@ -40,6 +40,8 @@ const LOOKAHEAD_SECONDS = 0.1;
 const SCHEDULER_INTERVAL_MS = 25;
 const MAX_FILE_BYTES = 150 * 1024 * 1024;
 const IMPORT_TIMEOUT_MS = 360_000;
+/** Resolution of log-scaled sound sliders. */
+const SLIDER_STEPS = 1000;
 /** Below this, beat detection is treated as a guess and the current tempo is kept. */
 const BEAT_CONFIDENCE = 0.015;
 const RAW_SOUND: SoundSettings = {...DEFAULT_SOUND, attack: 0, release: 0};
@@ -68,6 +70,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   readonly rowColors = Array.from({length: PAD_COUNT}, (_, index) => getRowColor(rowOf(index)));
   readonly steps = Array.from({length: VIEW_STEPS}, (_, step) => step);
   readonly soundControls = SOUND_CONTROLS;
+  readonly sliderSteps = SLIDER_STEPS;
   readonly modulationRates = MODULATION_RATES;
 
   // ── Pattern & selection ──
@@ -647,8 +650,24 @@ export class AppComponent implements AfterViewInit, OnDestroy {
   shapedTime() {
     if (!this.buffer) return 'Import audio to see the playback length';
     const bounds = this.sliceBoundsFor(this.selectedSlice());
-    const shape = voiceShape(bounds.duration, this.editorSound());
+    const shape = voiceShape(bounds.duration, this.editorSound(), this.buffer.duration - bounds.offset);
     return `${(shape.duration * 1000).toFixed(1)} ms playback · ${(bounds.duration * 1000).toFixed(1)} ms full slice`;
+  }
+
+  /** Slider position for a control; log-scaled controls map 0–1000 onto min–max. */
+  sliderValue(control: SoundControl) {
+    const value = this.editorSound()[control.key];
+    return control.log ? Math.round(Math.log(value / control.min) / Math.log(control.max / control.min) * SLIDER_STEPS) : value;
+  }
+
+  setSliderSound(control: SoundControl, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const position = Number(input.value);
+    if (!Number.isFinite(position)) return;
+    if (!control.log) return this.setSound(control.key, event);
+    const value = control.min * (control.max / control.min) ** (position / SLIDER_STEPS);
+    this.updateSound(control.key, Number((Math.round(value / control.step) * control.step).toPrecision(12)));
+    input.value = String(this.sliderValue(control));
   }
 
   setSound(key: SoundKey, event: Event) {
@@ -871,7 +890,7 @@ export class AppComponent implements AfterViewInit, OnDestroy {
     const row = rowOf(index);
     const bounds = this.sliceBoundsFor(this.rowSamples()[row]);
     const settings = override ?? effectiveSound(this.globalSound(), this.rowSounds()[row]);
-    const shape = voiceShape(bounds.duration, raw ? RAW_SOUND : modulateSound(settings, this.modulation(), step));
+    const shape = voiceShape(bounds.duration, raw ? RAW_SOUND : modulateSound(settings, this.modulation(), step), this.buffer.duration - bounds.offset);
     const voice = createVoice(this.context, this.master, this.buffer, shape, time);
     const {source} = voice;
 

@@ -230,11 +230,11 @@
               <input
                 type="range"
                 [attr.aria-label]="control.label"
-                [min]="control.min"
-                [max]="control.max"
-                [step]="control.step"
-                [value]="editorSound()[control.key]"
-                (input)="setSound(control.key, $event)"
+                [min]="control.log ? 0 : control.min"
+                [max]="control.log ? sliderSteps : control.max"
+                [step]="control.log ? 1 : control.step"
+                [value]="sliderValue(control)"
+                (input)="setSliderSound(control, $event)"
               >
               @if (soundScope() === 'row') {
                 <button class="inherit" [disabled]="!hasOverride(control.key)" (click)="inheritSound(control.key)">{{ hasOverride(control.key) ? '↩ Use global ' : 'Following global ' }}{{ control.label.toLowerCase() }}</button>

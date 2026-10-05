@@ -17,10 +17,13 @@ export interface SoundControl {
   min: number;
   max: number;
   step: number;
+  /** The slider moves on a log scale, so small values stay as easy to set as large ones. */
+  log?: boolean;
 }
 
 export const SOUND_CONTROLS: SoundControl[] = [
-  {key: 'length', label: 'Length', unit: '%', min: 0.1, max: 100, step: 0.1},
+  // Above 100% a hit plays on past its slice end into the following audio, so very short slices stay audible.
+  {key: 'length', label: 'Length', unit: '%', min: 0.1, max: 1600, step: 0.1, log: true},
   {key: 'attack', label: 'Attack', unit: 'ms', min: 0, max: 500, step: 1},
   {key: 'release', label: 'Release', unit: 'ms', min: 0, max: 1000, step: 1},
   {key: 'level', label: 'Level', unit: '%', min: 0, max: 150, step: 1},
@@ -33,9 +36,12 @@ export function effectiveSound(global: SoundSettings, pad: PadSound): SoundSetti
   return {...global, ...pad};
 }
 
-/** Source duration is trimmed before repitching; the envelope is in playback seconds. */
-export function voiceShape(sliceDuration: number, settings: SoundSettings) {
-  const sourceDuration = Math.min(sliceDuration, Math.max(0.001, sliceDuration * settings.length / 100));
+/**
+ * Source duration is trimmed or extended before repitching; the envelope is in playback seconds.
+ * `available` is the source audio from the slice start to the end of the recording.
+ */
+export function voiceShape(sliceDuration: number, settings: SoundSettings, available = sliceDuration) {
+  const sourceDuration = Math.min(Math.max(sliceDuration, available), Math.max(Math.min(0.001, sliceDuration), sliceDuration * settings.length / 100));
   const rate = 2 ** (settings.pitch / 12);
   const duration = sourceDuration / rate;
   // A short fade is always applied to avoid clicks; attack and release shrink together to fit short voices.
